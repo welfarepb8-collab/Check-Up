@@ -1,0 +1,384 @@
+// Google Sheet Configuration
+const SHEET_ID = '1BylxMGpdFX5pSSlBhHz-bzEjrqMimLIAbIgd-atheL4';
+const SHEET_NAME = 'Bookings';
+
+// จำนวนที่นั่งสูงสุดต่อรอบ (นับตามวันที่เดินทาง 1 รอบ = รถ 1 คัน/1 วัน)
+const MAX_SEATS_PER_ROUND = 10;
+
+// รายการวันที่เดินทางทั้งหมดที่เปิดให้จอง (ใช้สำหรับสร้างตารางที่นั่งคงเหลือ)
+const AVAILABLE_DATES = [
+  '24 กันยายน 2569',
+  '1 ตุลาคม 2569',
+  '8 ตุลาคม 2569',
+  '15 ตุลาคม 2569'
+];
+
+// จำนวนวันล่วงหน้าที่อนุญาตให้แก้ไข/ยกเลิกได้ก่อนถึงวันตรวจ
+const LOCK_DAYS_BEFORE = 2;
+
+// รหัสผ่านสำหรับผู้ดูแลระบบ (Admin) ใช้สำหรับแก้ไข/ยกเลิกข้อมูลแทนพนักงาน
+// แม้จะเกินกำหนดเวลาที่อนุญาตให้แก้ไขได้ล่วงหน้า (LOCK_DAYS_BEFORE) แล้วก็ตาม
+const ADMIN_PASSWORD = 'wf1982';
+
+function doGet(e) {
+  return HtmlService.createTemplateFromFile('index')
+      .evaluate()
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
+      .setTitle('ระบบจองคิวรถตรวจสุขภาพประจำปี - บริษัท เพรซิเดนท์ เบเกอรี่ จำกัด (มหาชน)');
+}
+
+// ดึงวัตถุ Sheet พร้อมระบบตรวจสอบและสร้างหัวตารางอัตโนมัติ
+function getSheet() {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  
+  // กรณีหาชื่อแท็บไม่เจอ ให้ใช้แท็บแรกสุดในไฟล์
+  if (!sheet) {
+    sheet = ss.getSheets()[0];
+  }
+  
+  // กรณีเป็นชีทใหม่ที่ยังไม่มีข้อมูล ให้สร้างหัวตารางอัตโนมัติ
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow([
+      'รหัสพนักงาน', 
+      'ชื่อ-สกุล', 
+      'ตำแหน่ง', 
+      'ฝ่าย', 
+      'ส่วน', 
+      'แผนก', 
+      'สถานที่ขึ้นรถ', 
+      'วันที่ตรวจ', 
+      'สถานะ', 
+      'เวลาทำรายการ'
+    ]);
+    
+    // ตกแต่งแถวหัวตาราง (Header) สไตล์สีแดงเพรซิเดนท์ เบเกอรี่
+    const headerRange = sheet.getRange(1, 1, 1, 10);
+    headerRange.setFontWeight('bold')
+               .setBackground('#DA251D')
+               .setFontColor('#FFFFFF')
+               .setHorizontalAlignment('center');
+  }
+  
+  return sheet;
+}
+
+// ค้นหาข้อมูลการจองปัจจุบันจากรหัสพนักงาน
+function getBooking(empId) {
+  try {
+    if (!empId) return null;
+    const sheet = getSheet();
+    const data = sheet.getDataRange().getDisplayValues();
+    
+    if (data.length <= 1) return null; // มีแค่หัวตารางหรือไม่มีข้อมูล
+    
+    const searchId = String(empId).trim();
+    
+    for (let i = 1; i < data.length; i++) {
+      // ค้นหาแถวที่ตรงกับรหัสพนักงาน และสถานะไม่ใช่ Cancelled
+      if (String(data[i][0]).trim() === searchId && data[i][8] !== 'Cancelled') {
+        return {
+          empId: data[i][0],
+          name: data[i][1],
+          position: data[i][2],
+          department: data[i][3],
+          division: data[i][4],
+          section: data[i][5],
+          location: data[i][6],
+          date: data[i][7],
+          status: data[i][8],
+          row: i + 1
+        };
+      }
+    }
+    return null;
+  } catch (err) {
+    Logger.log('Error in getBooking: ' + err.toString());
+    throw new Error('ไม่สามารถดึงข้อมูลจาก Google Sheet ได้: ' + err.message);
+  }
+}
+
+// แปลงวันที่แบบข้อความเป็น Object Date สำหรับใช้ตรวจสอบเงื่อนไขล็อกวัน
+function parseThaiDate(dateStr) {
+  if (!dateStr) return null;
+  const map = {
+    '24 กันยายน 2569': new Date(2026, 8, 24), // เดือนเริ่มจาก 0 (8 = กันยายน)
+    '1 ตุลาคม 2569': new Date(2026, 9, 1),
+    '8 ตุลาคม 2569': new Date(2026, 9, 8),
+    '15 ตุลาคม 2569': new Date(2026, 9, 15)
+  };
+  return map[dateStr.trim()] || null;
+}
+
+// ตรวจสอบว่าเกินกำหนดเวลาที่ให้แก้ไข/ยกเลิกได้หรือไม่ (ล่วงหน้าอย่างน้อย LOCK_DAYS_BEFORE วัน)
+function checkLock(dateStr) {
+  const bookDate = parseThaiDate(dateStr);
+  if (!bookDate) return false;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // รีเซ็ตเวลาเป็นเที่ยงคืนเพื่อเปรียบเทียบเฉพาะวันที่
+  
+  const lockDate = new Date(bookDate);
+  lockDate.setDate(lockDate.getDate() - LOCK_DAYS_BEFORE); // วันล๊อกสิทธิ์คือ LOCK_DAYS_BEFORE วันก่อนวันเดินทาง
+  
+  return today >= lockDate;
+}
+
+// นับจำนวนคนที่จองไว้แล้วในรอบ (วันที่เดินทาง) ที่ระบุ
+// excludeEmpId: ใช้เพื่อไม่นับแถวของพนักงานคนที่กำลังทำรายการเอง (กรณีแก้ไขข้อมูลเดิม)
+function countBookedInRound(dateStr, excludeEmpId) {
+  const sheet = getSheet();
+  const data = sheet.getDataRange().getDisplayValues();
+  let count = 0;
+
+  for (let i = 1; i < data.length; i++) {
+    const rowEmpId = String(data[i][0]).trim();
+    if (excludeEmpId && rowEmpId === String(excludeEmpId).trim()) continue; // ข้ามแถวของตัวเอง
+
+    if (data[i][7] === dateStr && data[i][8] !== 'Cancelled') {
+      count++;
+    }
+  }
+
+  return count;
+}
+
+// ดึงจำนวนที่นั่งคงเหลือของทุกรอบ (วันที่เดินทาง) เพื่อส่งให้ฝั่ง Client แสดงผลแบบ Real-time
+function getAvailability() {
+  try {
+    const sheet = getSheet();
+    const data = sheet.getDataRange().getDisplayValues();
+
+    const counts = {};
+    AVAILABLE_DATES.forEach(d => { counts[d] = 0; });
+
+    for (let i = 1; i < data.length; i++) {
+      const d = data[i][7];
+      const status = data[i][8];
+      if (status !== 'Cancelled' && counts.hasOwnProperty(d)) {
+        counts[d]++;
+      }
+    }
+
+    const result = {};
+    AVAILABLE_DATES.forEach(d => {
+      const booked = counts[d];
+      result[d] = {
+        booked: booked,
+        remaining: Math.max(0, MAX_SEATS_PER_ROUND - booked),
+        maxSeats: MAX_SEATS_PER_ROUND,
+        full: booked >= MAX_SEATS_PER_ROUND
+      };
+    });
+
+    return result;
+  } catch (err) {
+    Logger.log('Error in getAvailability: ' + err.toString());
+    throw new Error('ไม่สามารถดึงข้อมูลที่นั่งคงเหลือได้: ' + err.message);
+  }
+}
+
+// บันทึก หรือ อัปเดตข้อมูลการจอง (ใช้งานปกติโดยพนักงาน - ยึดตามกฎการล็อกวัน)
+function saveBooking(formObject) {
+  return saveBookingInternal(formObject, false);
+}
+
+// เวอร์ชันสำหรับผู้ดูแลระบบ: ตรวจสอบรหัสผ่านก่อน แล้วบันทึก/อัปเดตข้อมูลได้
+// แม้จะเกินกำหนดเวลาที่อนุญาตให้แก้ไขล่วงหน้าแล้วก็ตาม (ยังคงตรวจสอบที่นั่งคงเหลือตามปกติ)
+function adminSaveBooking(formObject, password) {
+  if (!verifyAdminPassword(password)) {
+    return { success: false, message: 'รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง' };
+  }
+  return saveBookingInternal(formObject, true);
+}
+
+// ฟังก์ชันหลักที่ใช้บันทึก/อัปเดตข้อมูลการจองจริง
+// bypassLock = true จะข้ามการตรวจสอบวันหมดเขตแก้ไข (สำหรับ Admin เท่านั้น)
+function saveBookingInternal(formObject, bypassLock) {
+  try {
+    if (!formObject || !formObject.empId) {
+      return { success: false, message: 'กรุณากรอกรหัสพนักงานให้ครบถ้วน' };
+    }
+
+    const sheet = getSheet();
+    const timestamp = Utilities.formatDate(new Date(), 'GMT+7', 'yyyy-MM-dd HH:mm:ss');
+    const empIdTrimmed = String(formObject.empId).trim();
+    const existing = getBooking(empIdTrimmed);
+    const requestedDate = formObject.date || '';
+    
+    if (existing) {
+      // ตรวจสอบว่าหมดเขตแก้ไขล่วงหน้าตามจำนวนวันที่กำหนดหรือยัง (ยกเว้นกรณี Admin ที่ bypassLock = true)
+      if (!bypassLock && checkLock(existing.date)) {
+        return { 
+          success: false, 
+          message: 'ไม่สามารถแก้ไขได้ เนื่องจากหมดเขตการเปลี่ยนแปลง (ต้องทำก่อนวันตรวจล่วงหน้าอย่างน้อย ' + LOCK_DAYS_BEFORE + ' วัน)' 
+        };
+      }
+
+      // ตรวจสอบที่นั่งคงเหลือของรอบที่เลือก (ไม่นับแถวของตัวเอง เผื่อกรณีเลือกรอบเดิม)
+      const bookedCount = countBookedInRound(requestedDate, empIdTrimmed);
+      if (bookedCount >= MAX_SEATS_PER_ROUND) {
+        return {
+          success: false,
+          message: 'ไม่สามารถบันทึกได้ เนื่องจากรอบวันที่ ' + requestedDate + ' มีผู้จองครบ ' + MAX_SEATS_PER_ROUND + ' ที่นั่งแล้ว กรุณาเลือกรอบวันที่อื่น'
+        };
+      }
+      // อัปเดตข้อมูลทับแถวเดิม
+      sheet.getRange(existing.row, 1, 1, 10).setValues([[
+        empIdTrimmed, 
+        formObject.name ? formObject.name.trim() : '', 
+        formObject.position ? formObject.position.trim() : '', 
+        formObject.department ? formObject.department.trim() : '',
+        formObject.division ? formObject.division.trim() : '', 
+        formObject.section ? formObject.section.trim() : '', 
+        formObject.location || '', 
+        formObject.date || '', 
+        'Booked', 
+        timestamp
+      ]]);
+      return { success: true, message: 'อัปเดตข้อมูลการจองคิวสำเร็จเรียบร้อยแล้ว' };
+    } else {
+      // ตรวจสอบที่นั่งคงเหลือของรอบที่เลือก ก่อนเพิ่มข้อมูลใหม่
+      const bookedCount = countBookedInRound(requestedDate, null);
+      if (bookedCount >= MAX_SEATS_PER_ROUND) {
+        return {
+          success: false,
+          message: 'ไม่สามารถบันทึกได้ เนื่องจากรอบวันที่ ' + requestedDate + ' มีผู้จองครบ ' + MAX_SEATS_PER_ROUND + ' ที่นั่งแล้ว กรุณาเลือกรอบวันที่อื่น'
+        };
+      }
+
+      // เพิ่มข้อมูลใหม่
+      sheet.appendRow([
+        empIdTrimmed, 
+        formObject.name ? formObject.name.trim() : '', 
+        formObject.position ? formObject.position.trim() : '', 
+        formObject.department ? formObject.department.trim() : '',
+        formObject.division ? formObject.division.trim() : '', 
+        formObject.section ? formObject.section.trim() : '', 
+        formObject.location || '', 
+        formObject.date || '', 
+        'Booked', 
+        timestamp
+      ]);
+      return { success: true, message: 'บันทึกข้อมูลการจองคิวสำเร็จเรียบร้อยแล้ว' };
+    }
+  } catch (e) {
+    return { success: false, message: 'เกิดข้อผิดพลาดขณะบันทึกข้อมูล: ' + e.toString() };
+  }
+}
+
+// ยกเลิกการจอง (ใช้งานปกติโดยพนักงาน - ยึดตามกฎการล็อกวัน)
+function cancelBooking(empId) {
+  return cancelBookingInternal(empId, false);
+}
+
+// เวอร์ชันสำหรับผู้ดูแลระบบ: ตรวจสอบรหัสผ่านก่อน แล้วยกเลิกการจองแทนพนักงานได้
+// แม้จะเกินกำหนดเวลาที่อนุญาตให้ยกเลิกล่วงหน้าแล้วก็ตาม
+function adminCancelBooking(empId, password) {
+  if (!verifyAdminPassword(password)) {
+    return { success: false, message: 'รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง' };
+  }
+  return cancelBookingInternal(empId, true);
+}
+
+// ฟังก์ชันหลักที่ใช้ยกเลิกการจองจริง
+// bypassLock = true จะข้ามการตรวจสอบวันหมดเขตยกเลิก (สำหรับ Admin เท่านั้น)
+function cancelBookingInternal(empId, bypassLock) {
+  try {
+    if (!empId) {
+      return { success: false, message: 'ไม่พบรหัสพนักงาน' };
+    }
+
+    const sheet = getSheet();
+    const empIdTrimmed = String(empId).trim();
+    const existing = getBooking(empIdTrimmed);
+    
+    if (existing) {
+      // ตรวจสอบว่าหมดเขตยกเลิกตามจำนวนวันที่กำหนดหรือยัง (ยกเว้นกรณี Admin ที่ bypassLock = true)
+      if (!bypassLock && checkLock(existing.date)) {
+        return { 
+          success: false, 
+          message: 'ไม่สามารถยกเลิกได้ เนื่องจากหมดเขตการเปลี่ยนแปลง (ต้องทำก่อนวันตรวจล่วงหน้าอย่างน้อย ' + LOCK_DAYS_BEFORE + ' วัน)' 
+        };
+      }
+      const timestamp = Utilities.formatDate(new Date(), 'GMT+7', 'yyyy-MM-dd HH:mm:ss');
+      sheet.getRange(existing.row, 9).setValue('Cancelled');
+      sheet.getRange(existing.row, 10).setValue(timestamp); 
+      return { success: true, message: 'ยกเลิกการจองคิวสำเร็จเรียบร้อยแล้ว' };
+    }
+    return { success: false, message: 'ไม่พบข้อมูลการจองของรหัสพนักงานนี้ในระบบ' };
+  } catch (e) {
+    return { success: false, message: 'เกิดข้อผิดพลาดขณะยกเลิกการจอง: ' + e.toString() };
+  }
+}
+
+// ตรวจสอบรหัสผ่านผู้ดูแลระบบ
+function verifyAdminPassword(password) {
+  return typeof password === 'string' && password === ADMIN_PASSWORD;
+}
+
+// ใช้สำหรับหน้าจอ Login ของ Admin - ตรวจสอบรหัสผ่านอย่างเดียว ไม่คืนข้อมูลอื่นใด
+function adminLogin(password) {
+  return { success: verifyAdminPassword(password) };
+}
+
+// ดึงรายการจองทั้งหมดในระบบ (ทุกสถานะ) สำหรับหน้าจอ Admin
+// ต้องแนบรหัสผ่านที่ถูกต้องมาด้วยทุกครั้ง
+function adminGetAllBookings(password) {
+  if (!verifyAdminPassword(password)) {
+    throw new Error('รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง');
+  }
+  const sheet = getSheet();
+  const data = sheet.getDataRange().getDisplayValues();
+  const result = [];
+
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue; // ข้ามแถวว่าง
+    result.push({
+      empId: data[i][0],
+      name: data[i][1],
+      position: data[i][2],
+      department: data[i][3],
+      division: data[i][4],
+      section: data[i][5],
+      location: data[i][6],
+      date: data[i][7],
+      status: data[i][8],
+      timestamp: data[i][9],
+      row: i + 1
+    });
+  }
+
+  return result;
+}
+
+// ค้นหาข้อมูลการจองของพนักงานคนใดก็ได้สำหรับ Admin (รวมถึงรายการที่ยกเลิกแล้ว)
+// ใช้แทน getBooking ปกติ เนื่องจาก getBooking จะข้ามแถวที่สถานะเป็น Cancelled
+function adminSearchBooking(empId, password) {
+  if (!verifyAdminPassword(password)) {
+    throw new Error('รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง');
+  }
+  if (!empId) return null;
+
+  const sheet = getSheet();
+  const data = sheet.getDataRange().getDisplayValues();
+  const searchId = String(empId).trim();
+
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim() === searchId) {
+      return {
+        empId: data[i][0],
+        name: data[i][1],
+        position: data[i][2],
+        department: data[i][3],
+        division: data[i][4],
+        section: data[i][5],
+        location: data[i][6],
+        date: data[i][7],
+        status: data[i][8],
+        row: i + 1
+      };
+    }
+  }
+  return null;
+}
