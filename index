@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบจองคิวรถตรวจสุขภาพ - บริษัท เพรซิเดนท์ เบเกอรี่ จำกัด (มหาชน)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- SweetAlert2 -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts Prompt -->
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'sans-serif'],
+          },
+          colors: {
+            pb: {
+              red: '#DA251D',
+              darkred: '#A8140E',
+              lightred: '#FFF1F0',
+              gold: '#D4AF37',
+              dark: '#1E293B',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style>
+    body {
+      font-family: 'Prompt', sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.6);
+    }
+    .header-gradient {
+      background: linear-gradient(135deg, #DA251D 0%, #991B1B 60%, #701A1A 100%);
+    }
+    .custom-radio:checked + .radio-tile {
+      border-color: #DA251D;
+      background-color: #FFF1F0;
+      box-shadow: 0 4px 14px 0 rgba(218, 37, 29, 0.25);
+    }
+    .custom-radio:checked + .radio-tile .icon-box {
+      background-color: #DA251D;
+      color: white;
+    }
+    .custom-radio:checked + .radio-tile .radio-dot {
+      border-color: #DA251D;
+      background-color: #DA251D;
+    }
+    .ticket-pattern {
+      background-image: radial-gradient(#DA251D 0.75px, transparent 0.75px);
+      background-size: 8px 8px;
+    }
+    .step-panel {
+      animation: stepFadeIn 0.3s ease;
+    }
+    @keyframes stepFadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="min-h-screen py-8 px-4 sm:px-6 lg:px-8 flex flex-col justify-center items-center relative overflow-x-hidden">
+
+  <!-- Background decorative elements -->
+  <div class="fixed -top-24 -left-24 w-96 h-96 bg-red-200 rounded-full blur-3xl opacity-40 pointer-events-none"></div>
+  <div class="fixed -bottom-24 -right-24 w-96 h-96 bg-amber-100 rounded-full blur-3xl opacity-50 pointer-events-none"></div>
+
+  <div class="w-full max-w-5xl z-10">
+    
+    <!-- Top Brand Header Bar -->
+    <div class="header-gradient text-white rounded-t-3xl shadow-2xl overflow-hidden relative p-6 sm:p-8 border-b-4 border-pb-gold">
+      <div class="absolute -right-10 -bottom-10 opacity-10 text-9xl pointer-events-none">
+        <i class="fa-solid fa-bus-simple"></i>
+      </div>
+      
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 relative z-10">
+        <div>
+          <div class="inline-flex items-center gap-2 bg-white/15 backdrop-blur-md px-3 py-1 rounded-full text-xs font-medium tracking-wide text-amber-200 mb-2 border border-white/20">
+            <i class="fa-solid fa-crown text-pb-gold"></i> ระดับตำแหน่งหัวหน้าแผนกขึ้นไป
+          </div>
+          <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-3">
+            <span>ระบบจองคิวรถตรวจสุขภาพประจำปี 2569</span>
+          </h1>
+          <p class="text-red-100 text-xs sm:text-sm mt-1 font-light flex items-center gap-2">
+            <i class="fa-regular fa-building"></i> บริษัท เพรซิเดนท์ เบเกอรี่ จำกัด (มหาชน)
+          </p>
+        </div>
+        
+        <div class="flex items-center gap-3 bg-black/20 p-3 rounded-2xl border border-white/10 backdrop-blur-sm self-start md:self-auto">
+          <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-xl text-amber-300">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+          </div>
+          <div class="text-xs">
+            <div class="text-red-200 font-light">เวลาออกเดินทาง</div>
+            <div class="text-base font-bold text-white tracking-wider">08:00 น. ตรง</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Container -->
+    <div class="glass-card rounded-b-3xl shadow-2xl p-6 sm:p-10 border-t-0">
+
+      <!-- Search & Status Section -->
+      <div class="bg-gradient-to-r from-slate-50 to-red-50/40 p-5 rounded-2xl border border-red-100 mb-8 shadow-sm">
+        <label for="searchEmpId" class="block text-xs font-bold uppercase tracking-wider text-pb-red mb-2 flex items-center gap-2">
+          <i class="fa-solid fa-magnifying-glass"></i> ค้นหาข้อมูลจองคิวที่มีอยู่ / ตรวจสอบสิทธิ์
+        </label>
+        <div class="flex flex-col sm:flex-row gap-3">
+          <div class="relative flex-grow">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <i class="fa-solid fa-id-card"></i>
+            </div>
+            <input type="text" id="searchEmpId" placeholder="กรอกรหัสพนักงาน เช่น 10485" class="w-full pl-10 pr-4 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-pb-red focus:border-pb-red text-slate-800 text-sm font-medium shadow-sm transition">
+          </div>
+          <button type="button" onclick="searchBooking()" class="bg-pb-red hover:bg-pb-darkred active:scale-95 text-white font-semibold py-3 px-6 rounded-xl shadow-md transition-all duration-200 flex items-center justify-center gap-2 text-sm whitespace-nowrap">
+            <i class="fa-solid fa-magnifying-glass"></i> ค้นหาข้อมูล
+          </button>
+        </div>
+      </div>
+
+      <!-- Admin Access Bar -->
+      <div class="flex items-center justify-between mb-6 -mt-2 px-1">
+        <div id="adminStatusBar" class="hidden inline-flex items-center gap-2 bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+          <i class="fa-solid fa-user-shield text-amber-300"></i> โหมดผู้ดูแลระบบ
+          <button type="button" onclick="adminLogout()" class="ml-1 text-slate-300 hover:text-white underline underline-offset-2">ออกจากระบบ</button>
+        </div>
+        <div class="flex-grow"></div>
+        <button type="button" id="btnAdminLogin" onclick="openAdminLogin()" class="text-xs text-slate-400 hover:text-pb-red font-medium flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-user-shield"></i> สำหรับผู้ดูแลระบบ
+        </button>
+      </div>
+
+      <!-- Step Indicator -->
+      <div class="mb-8 px-1" id="wizardTop">
+        <div class="flex items-center justify-between">
+          <div class="flex flex-col items-center flex-1" data-step-indicator="1">
+            <div class="step-circle w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-pb-red text-white transition-colors">1</div>
+            <div class="step-label text-[10px] sm:text-xs font-bold text-pb-red mt-1.5 text-center">ข้อมูลพนักงาน</div>
+          </div>
+          <div class="step-connector flex-1 h-1 mx-1 sm:mx-2 rounded bg-slate-200 transition-colors"></div>
+          <div class="flex flex-col items-center flex-1" data-step-indicator="2">
+            <div class="step-circle w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-slate-200 text-slate-500 transition-colors">2</div>
+            <div class="step-label text-[10px] sm:text-xs font-medium text-slate-400 mt-1.5 text-center">จุดขึ้นรถ</div>
+          </div>
+          <div class="step-connector flex-1 h-1 mx-1 sm:mx-2 rounded bg-slate-200 transition-colors"></div>
+          <div class="flex flex-col items-center flex-1" data-step-indicator="3">
+            <div class="step-circle w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-slate-200 text-slate-500 transition-colors">3</div>
+            <div class="step-label text-[10px] sm:text-xs font-medium text-slate-400 mt-1.5 text-center">วันเดินทาง</div>
+          </div>
+          <div class="step-connector flex-1 h-1 mx-1 sm:mx-2 rounded bg-slate-200 transition-colors"></div>
+          <div class="flex flex-col items-center flex-1" data-step-indicator="4">
+            <div class="step-circle w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-slate-200 text-slate-500 transition-colors">4</div>
+            <div class="step-label text-[10px] sm:text-xs font-medium text-slate-400 mt-1.5 text-center">ตรวจสอบ/ยืนยัน</div>
+          </div>
+        </div>
+      </div>
+
+      <form id="bookingForm" onsubmit="event.preventDefault();" class="space-y-8">
+
+        <!-- Grid Layout: Form Inputs + Live E-Ticket Preview -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          
+          <!-- Left Column: Form Fields (8 cols) -->
+          <div class="lg:col-span-7 space-y-6">
+            
+            <!-- Section 1: Employee Info -->
+            <div id="step1" class="step-panel">
+              <div class="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
+                <span class="w-7 h-7 rounded-full bg-pb-red text-white font-bold text-xs flex items-center justify-center">1</span>
+                <h2 class="text-base font-bold text-slate-800">ข้อมูลผู้ลงทะเบียน</h2>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">รหัสพนักงาน <span class="text-red-500">*</span></label>
+                  <input type="text" id="empId" name="empId" required oninput="updateTicketPreview()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-pb-red text-sm transition">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">ชื่อ - สกุล <span class="text-red-500">*</span></label>
+                  <input type="text" id="name" name="name" required oninput="updateTicketPreview()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-pb-red text-sm transition">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">ตำแหน่ง <span class="text-red-500">*</span></label>
+                  <input type="text" id="position" name="position" required oninput="updateTicketPreview()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-pb-red text-sm transition">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">ฝ่าย <span class="text-red-500">*</span></label>
+                  <input type="text" id="department" name="department" required oninput="updateTicketPreview()" class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-pb-red text-sm transition">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">ส่วน <span class="text-red-500">*</span></label>
+                  <input type="text" id="division" name="division" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-pb-red text-sm transition">
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-slate-600 mb-1">แผนก <span class="text-red-500">*</span></label>
+                  <input type="text" id="section" name="section" required class="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-pb-red text-sm transition">
+                </div>
+              </div>
+            </div>
+
+            <!-- Section 2: Location Selection -->
+            <div id="step2" class="step-panel hidden">
+              <div class="flex items-center gap-2 mb-3 pb-2 border-b border-slate-200">
+                <span class="w-7 h-7 rounded-full bg-pb-red text-white font-bold text-xs flex items-center justify-center">2</span>
+                <h2 class="text-base font-bold text-slate-800">สถานที่ขึ้นรถ (เวลารถออก 08:00 น.)</h2>
+              </div>
+
+              <div class="grid grid-cols-1 gap-3">
+                
+                <label class="cursor-pointer relative">
+                  <input type="radio" name="location" value="โรงงานลาดกระบัง 1 (หน้าอาคาร 3)" required onchange="updateTicketPreview()" class="custom-radio sr-only">
+                  <div class="radio-tile flex items-center p-4 border-2 border-slate-200 rounded-xl transition-all duration-200 hover:border-red-300 hover:bg-slate-50">
+                    <div class="icon-box w-11 h-11 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-lg mr-4 transition-colors">
+                      <i class="fa-solid fa-industry"></i>
+                    </div>
+                    <div class="flex-grow">
+                      <div class="font-bold text-slate-800 text-sm">โรงงานลาดกระบัง 1</div>
+                      <div class="text-xs text-slate-500">จุดจอด: จุดหน้าอาคาร 3</div>
+                    </div>
+                    <div class="radio-dot w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center">
+                      <div class="w-2 h-2 rounded-full bg-white"></div>
+                    </div>
+                  </div>
+                </label>
+
+                <label class="cursor-pointer relative">
+                  <input type="radio" name="location" value="โรงงานบางชัน (หน้าประชาสัมพันธ์)" required onchange="updateTicketPreview()" class="custom-radio sr-only">
+                  <div class="radio-tile flex items-center p-4 border-2 border-slate-200 rounded-xl transition-all duration-200 hover:border-red-300 hover:bg-slate-50">
+                    <div class="icon-box w-11 h-11 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center text-lg mr-4 transition-colors">
+                      <i class="fa-solid fa-building-user"></i>
+                    </div>
+                    <div class="flex-grow">
+                      <div class="font-bold text-slate-800 text-sm">โรงงานบางชัน</div>
+                      <div class="text-xs text-slate-500">จุดจอด: หน้าเคาน์เตอร์ประชาสัมพันธ์</div>
+                    </div>
+                    <div class="radio-dot w-5 h-5 rounded-full border-2 border-slate-300 flex items-center justify-center">
+                      <div class="w-2 h-2 rounded-full bg-white"></div>
+                    </div>
+                  </div>
+                </label>
+
+              </div>
+            </div>
+
+            <!-- Section 3: Date Selection -->
+            <div id="step3" class="step-panel hidden">
+              <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-200">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-full bg-pb-red text-white font-bold text-xs flex items-center justify-center">3</span>
+                  <h2 class="text-base font-bold text-slate-800">เลือกวันที่เดินทางไปตรวจสุขภาพ</h2>
+                </div>
+                <span class="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full flex items-center gap-1 font-medium">
+                  <i class="fa-solid fa-triangle-exclamation"></i> แก้ไขได้ล่วงหน้า 2 วัน
+                </span>
+              </div>
+
+              <div class="grid grid-cols-2 gap-3">
+                
+                <label class="cursor-pointer relative" data-date-tile="24 กันยายน 2569">
+                  <input type="radio" name="date" value="24 กันยายน 2569" required onchange="updateTicketPreview()" class="custom-radio sr-only">
+                  <div class="radio-tile p-3.5 border-2 border-slate-200 rounded-xl transition-all text-center hover:border-red-300">
+                    <div class="icon-box w-8 h-8 rounded-lg bg-slate-100 text-slate-600 mx-auto mb-2 flex items-center justify-center text-sm">
+                      <i class="fa-regular fa-calendar-check"></i>
+                    </div>
+                    <div class="font-bold text-slate-800 text-xs sm:text-sm">24 ก.ย. 2569</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">วันพุธ</div>
+                    <div class="seat-info text-[10px] font-semibold mt-1 text-slate-400">กำลังโหลด...</div>
+                  </div>
+                </label>
+
+                <label class="cursor-pointer relative" data-date-tile="1 ตุลาคม 2569">
+                  <input type="radio" name="date" value="1 ตุลาคม 2569" required onchange="updateTicketPreview()" class="custom-radio sr-only">
+                  <div class="radio-tile p-3.5 border-2 border-slate-200 rounded-xl transition-all text-center hover:border-red-300">
+                    <div class="icon-box w-8 h-8 rounded-lg bg-slate-100 text-slate-600 mx-auto mb-2 flex items-center justify-center text-sm">
+                      <i class="fa-regular fa-calendar-check"></i>
+                    </div>
+                    <div class="font-bold text-slate-800 text-xs sm:text-sm">1 ต.ค. 2569</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">วันพฤหัสบดี</div>
+                    <div class="seat-info text-[10px] font-semibold mt-1 text-slate-400">กำลังโหลด...</div>
+                  </div>
+                </label>
+
+                <label class="cursor-pointer relative" data-date-tile="8 ตุลาคม 2569">
+                  <input type="radio" name="date" value="8 ตุลาคม 2569" required onchange="updateTicketPreview()" class="custom-radio sr-only">
+                  <div class="radio-tile p-3.5 border-2 border-slate-200 rounded-xl transition-all text-center hover:border-red-300">
+                    <div class="icon-box w-8 h-8 rounded-lg bg-slate-100 text-slate-600 mx-auto mb-2 flex items-center justify-center text-sm">
+                      <i class="fa-regular fa-calendar-check"></i>
+                    </div>
+                    <div class="font-bold text-slate-800 text-xs sm:text-sm">8 ต.ค. 2569</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">วันพฤหัสบดี</div>
+                    <div class="seat-info text-[10px] font-semibold mt-1 text-slate-400">กำลังโหลด...</div>
+                  </div>
+                </label>
+
+                <label class="cursor-pointer relative" data-date-tile="15 ตุลาคม 2569">
+                  <input type="radio" name="date" value="15 ตุลาคม 2569" required onchange="updateTicketPreview()" class="custom-radio sr-only">
+                  <div class="radio-tile p-3.5 border-2 border-slate-200 rounded-xl transition-all text-center hover:border-red-300">
+                    <div class="icon-box w-8 h-8 rounded-lg bg-slate-100 text-slate-600 mx-auto mb-2 flex items-center justify-center text-sm">
+                      <i class="fa-regular fa-calendar-check"></i>
+                    </div>
+                    <div class="font-bold text-slate-800 text-xs sm:text-sm">15 ต.ค. 2569</div>
+                    <div class="text-[11px] text-slate-400 mt-0.5">วันพฤหัสบดี</div>
+                    <div class="seat-info text-[10px] font-semibold mt-1 text-slate-400">กำลังโหลด...</div>
+                  </div>
+                </label>
+
+              </div>
+            </div>
+
+            <!-- Section 4: Review & Confirm -->
+            <div id="step4" class="step-panel hidden">
+              <div class="flex items-center gap-2 mb-4 pb-2 border-b border-slate-200">
+                <span class="w-7 h-7 rounded-full bg-pb-red text-white font-bold text-xs flex items-center justify-center">4</span>
+                <h2 class="text-base font-bold text-slate-800">ตรวจสอบข้อมูลก่อนยืนยัน</h2>
+              </div>
+
+              <div class="space-y-3 text-sm">
+                <div class="flex justify-between items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div class="min-w-0">
+                    <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">ข้อมูลผู้ลงทะเบียน</div>
+                    <div id="reviewEmpInfo" class="font-semibold text-slate-800 mt-0.5">-</div>
+                  </div>
+                  <button type="button" onclick="goToStep(1, { skipValidation: true })" class="flex-shrink-0 text-xs text-pb-red font-semibold hover:underline flex items-center gap-1"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+                </div>
+                <div class="flex justify-between items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div class="min-w-0">
+                    <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">จุดขึ้นรถ</div>
+                    <div id="reviewLocation" class="font-semibold text-slate-800 mt-0.5">-</div>
+                  </div>
+                  <button type="button" onclick="goToStep(2, { skipValidation: true })" class="flex-shrink-0 text-xs text-pb-red font-semibold hover:underline flex items-center gap-1"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+                </div>
+                <div class="flex justify-between items-start gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div class="min-w-0">
+                    <div class="text-[10px] text-slate-400 uppercase font-semibold tracking-wide">วันที่เดินทาง</div>
+                    <div id="reviewDate" class="font-semibold text-pb-red mt-0.5">-</div>
+                  </div>
+                  <button type="button" onclick="goToStep(3, { skipValidation: true })" class="flex-shrink-0 text-xs text-pb-red font-semibold hover:underline flex items-center gap-1"><i class="fa-solid fa-pen"></i> แก้ไข</button>
+                </div>
+              </div>
+
+              <div class="mt-4 text-[11px] text-slate-400 bg-amber-50 border border-amber-100 text-amber-700 rounded-lg px-3 py-2.5 flex items-start gap-2">
+                <i class="fa-solid fa-circle-info mt-0.5"></i>
+                <span>กรุณาตรวจสอบข้อมูลให้ถูกต้อง เมื่อกดยืนยันแล้วระบบจะบันทึกข้อมูลของท่านเข้าสู่ฐานข้อมูลทันที</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Interactive Live Ticket Preview (5 cols) -->
+          <div class="lg:col-span-5 flex flex-col justify-start">
+            <div class="sticky top-6">
+              
+              <div class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-ticket text-pb-red"></i> ตัวอย่างบัตรคิวรถตรวจสุขภาพ
+              </div>
+
+              <!-- Digital Ticket Card Container -->
+              <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden relative transition-all duration-300 transform hover:-translate-y-1">
+                
+                <!-- Ticket Top Header -->
+                <div class="bg-pb-red p-4 text-white relative overflow-hidden">
+                  <div class="ticket-pattern absolute inset-0 opacity-20"></div>
+                  <div class="relative z-10 flex justify-between items-center">
+                    <div>
+                      <div class="text-[10px] uppercase font-bold tracking-wider text-red-200">President Bakery</div>
+                      <div class="text-base font-extrabold tracking-wide">BUS PASS TICKET</div>
+                    </div>
+                    <div class="bg-white/20 px-2.5 py-1 rounded-lg text-xs font-semibold backdrop-blur-sm border border-white/20">
+                      2026 / 2569
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Ticket Divider with Punch Holes -->
+                <div class="relative bg-slate-100 h-4 border-y border-dashed border-slate-300 flex items-center justify-between px-2">
+                  <div class="w-4 h-4 bg-slate-100 border border-slate-300 rounded-full -ml-4"></div>
+                  <div class="text-[10px] text-slate-400 tracking-widest font-mono">HEALTH CHECKUP PASS</div>
+                  <div class="w-4 h-4 bg-slate-100 border border-slate-300 rounded-full -mr-4"></div>
+                </div>
+
+                <!-- Ticket Body Content -->
+                <div class="p-5 space-y-4">
+                  
+                  <div>
+                    <div class="text-[10px] text-slate-400 uppercase font-medium">ชื่อผู้ถือบัตร / Passenger Name</div>
+                    <div id="previewName" class="text-base font-bold text-slate-800 truncate">--- ยังไม่ได้ระบุ ---</div>
+                  </div>
+
+                  <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                    <div>
+                      <div class="text-[10px] text-slate-400 uppercase font-medium">รหัสพนักงาน</div>
+                      <div id="previewEmpId" class="text-sm font-semibold text-slate-700">---</div>
+                    </div>
+                    <div>
+                      <div class="text-[10px] text-slate-400 uppercase font-medium">ตำแหน่ง / ฝ่าย</div>
+                      <div id="previewPos" class="text-sm font-semibold text-slate-700 truncate">---</div>
+                    </div>
+                  </div>
+
+                  <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-2">
+                    <div class="flex items-start gap-2">
+                      <i class="fa-solid fa-location-dot text-pb-red mt-0.5 text-xs"></i>
+                      <div>
+                        <div class="text-[10px] text-slate-400 font-medium">จุดขึ้นรถ</div>
+                        <div id="previewLocation" class="text-xs font-bold text-slate-800">ยังไม่ได้เลือกจุดขึ้นรถ</div>
+                      </div>
+                    </div>
+
+                    <div class="flex items-start gap-2 pt-2 border-t border-slate-200/60">
+                      <i class="fa-solid fa-calendar-day text-pb-red mt-0.5 text-xs"></i>
+                      <div>
+                        <div class="text-[10px] text-slate-400 font-medium">วันที่เดินทาง</div>
+                        <div id="previewDate" class="text-xs font-bold text-pb-red">ยังไม่ได้เลือกวันที่</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Ticket Footer Info -->
+                  <div class="flex items-center justify-between text-xs pt-1 text-slate-500">
+                    <div class="flex items-center gap-1.5">
+                      <i class="fa-solid fa-bus text-slate-400"></i>
+                      <span>รถออกเวลา <strong>08:00 น.</strong></span>
+                    </div>
+                    <div id="previewStatus" class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">
+                      รอลงทะเบียน
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+
+              <p class="text-[11px] text-slate-400 text-center mt-3">
+                <i class="fa-solid fa-shield-halved"></i> ข้อมูลจะถูกบันทึกอย่างปลอดภัยในระบบประวัติพนักงาน
+              </p>
+
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Form Action Buttons -->
+        <div class="pt-6 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
+          <button type="button" onclick="resetForm()" class="w-full sm:w-auto px-5 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-medium text-sm transition flex items-center justify-center gap-2">
+            <i class="fa-solid fa-rotate-right"></i> ล้างข้อมูล
+          </button>
+
+          <div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+            <button type="button" id="btnBack" onclick="prevStep()" class="hidden w-full sm:w-auto px-5 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-medium text-sm transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-arrow-left"></i> ย้อนกลับ
+            </button>
+
+            <button type="button" id="btnCancel" onclick="cancelBookingAction()" class="hidden w-full sm:w-auto px-5 py-3 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-medium text-sm shadow-md transition flex items-center justify-center gap-2">
+              <i class="fa-solid fa-ban"></i> ยกเลิกการจอง
+            </button>
+
+            <button type="button" id="btnNext" onclick="nextStep()" class="w-full sm:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-pb-red to-pb-darkred hover:from-red-600 hover:to-pb-red text-white font-bold text-sm shadow-lg shadow-red-200 hover:shadow-red-300 transition-all duration-200 active:scale-95 flex items-center justify-center gap-2">
+              ถัดไป <i class="fa-solid fa-arrow-right"></i>
+            </button>
+
+            <button type="button" id="btnSubmit" onclick="submitForm()" class="hidden w-full sm:w-auto px-8 py-3 rounded-xl bg-gradient-to-r from-pb-red to-pb-darkred hover:from-red-600 hover:to-pb-red text-white font-bold text-sm shadow-lg shadow-red-200 hover:shadow-red-300 transition-all duration-200 active:scale-95 flex items-center justify-center gap-2">
+              <i class="fa-solid fa-paper-plane"></i> ยืนยันและบันทึกข้อมูล
+            </button>
+          </div>
+        </div>
+
+      </form>
+
+      <!-- Admin Panel: Full booking list, only visible after admin login -->
+      <div id="adminPanel" class="hidden mt-10 pt-8 border-t-2 border-dashed border-slate-200">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h2 class="text-base font-bold text-slate-800 flex items-center gap-2">
+            <i class="fa-solid fa-table-list text-pb-red"></i> รายการจองทั้งหมด (Admin)
+          </h2>
+          <div class="flex items-center gap-2">
+            <input type="text" id="adminFilterInput" oninput="renderAdminTable()" placeholder="ค้นหารหัส/ชื่อพนักงาน..." class="px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-pb-red text-xs w-56">
+            <button type="button" onclick="loadAdminBookings()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium px-3 py-2 rounded-lg flex items-center gap-1.5">
+              <i class="fa-solid fa-rotate"></i> รีเฟรช
+            </button>
+          </div>
+        </div>
+        <div class="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 flex items-center gap-2">
+          <i class="fa-solid fa-triangle-exclamation"></i> ผู้ดูแลระบบสามารถแก้ไข/ยกเลิกข้อมูลแทนพนักงานได้ แม้เกินกำหนดเวลาล่วงหน้า 2 วันแล้วก็ตาม
+        </div>
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+          <table class="min-w-full text-xs text-left">
+            <thead class="bg-slate-100 text-slate-600 uppercase text-[10px] tracking-wider">
+              <tr>
+                <th class="px-3 py-2.5">รหัส</th>
+                <th class="px-3 py-2.5">ชื่อ-สกุล</th>
+                <th class="px-3 py-2.5">ฝ่าย/แผนก</th>
+                <th class="px-3 py-2.5">วันที่ตรวจ</th>
+                <th class="px-3 py-2.5">สถานะ</th>
+                <th class="px-3 py-2.5 text-center">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="adminTableBody" class="divide-y divide-slate-100">
+              <tr><td colspan="6" class="px-3 py-6 text-center text-slate-400">กำลังโหลดข้อมูล...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer Copyright -->
+    <div class="text-center text-xs text-slate-500 mt-6 font-light">
+      © 2026 President Bakery Public Company Limited. All rights reserved.
+    </div>
+
+  </div>
+
+  <script>
+    // เก็บวันที่ของ "การจองเดิม" ของพนักงานที่กำลังค้นหา/แก้ไขอยู่ (ถ้ามี)
+    // ใช้เพื่อไม่ล็อกปุ่มเลือกวันเดิมของตัวเอง แม้รอบนั้นจะเต็มแล้วก็ตาม
+    let loadedBookingDate = null;
+
+    // ===================== Wizard (ระบบขั้นตอนหลายหน้า) =====================
+    let currentStep = 1;               // ขั้นตอนปัจจุบันที่กำลังแสดง (1-4)
+    let isEditingExisting = false;     // true เมื่อกำลังแก้ไขรายการที่มีอยู่แล้ว (ไม่ใช่จองใหม่)
+
+    // ตรวจสอบความถูกต้องของข้อมูลในแต่ละขั้นตอน ก่อนอนุญาตให้ไปขั้นตอนถัดไป
+    function validateStep(step) {
+      if (step === 1) {
+        const ids = ['empId', 'name', 'position', 'department', 'division', 'section'];
+        for (const id of ids) {
+          const el = document.getElementById(id);
+          if (!el.value.trim()) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'ข้อมูลไม่ครบถ้วน',
+              text: 'กรุณากรอกข้อมูลผู้ลงทะเบียนให้ครบทุกช่องก่อนไปขั้นตอนถัดไป',
+              confirmButtonColor: '#DA251D'
+            });
+            el.focus();
+            return false;
+          }
+        }
+        return true;
+      }
+      if (step === 2) {
+        if (!document.querySelector('input[name="location"]:checked')) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'กรุณาเลือกจุดขึ้นรถ',
+            text: 'โปรดเลือกสถานที่ขึ้นรถก่อนไปขั้นตอนถัดไป',
+            confirmButtonColor: '#DA251D'
+          });
+          return false;
+        }
+        return true;
+      }
+      if (step === 3) {
+        if (!document.querySelector('input[name="date"]:checked')) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'กรุณาเลือกวันที่เดินทาง',
+            text: 'โปรดเลือกวันที่เดินทางไปตรวจสุขภาพก่อนไปขั้นตอนถัดไป',
+            confirmButtonColor: '#DA251D'
+          });
+          return false;
+        }
+        return true;
+      }
+      return true;
+    }
+
+    // ไปขั้นตอนถัดไป (ตรวจสอบข้อมูลขั้นตอนปัจจุบันก่อนเสมอ)
+    function nextStep() {
+      if (!validateStep(currentStep)) return;
+      if (currentStep < 4) goToStep(currentStep + 1, { skipValidation: true });
+    }
+
+    // ย้อนกลับไปขั้นตอนก่อนหน้า (ไม่ต้องตรวจสอบข้อมูล)
+    function prevStep() {
+      if (currentStep > 1) goToStep(currentStep - 1, { skipValidation: true });
+    }
+
+    // ไปยังขั้นตอนที่ระบุโดยตรง เช่น กดปุ่ม "แก้ไข" จากหน้าตรวจสอบ หรือหลังค้นหาพบข้อมูล
+    // opts.skipValidation = true จะข้ามการตรวจสอบข้อมูลของขั้นตอนที่ผ่านมา (ใช้เมื่อข้อมูลถูกโหลดมาจากระบบแล้ว)
+    function goToStep(step, opts) {
+      opts = opts || {};
+      if (!opts.skipValidation) {
+        for (let s = currentStep; s < step; s++) {
+          if (!validateStep(s)) return;
+        }
+      }
+      currentStep = step;
+
+      document.querySelectorAll('.step-panel').forEach(function(panel) {
+        panel.classList.add('hidden');
+      });
+      const target = document.getElementById('step' + step);
+      if (target) target.classList.remove('hidden');
+
+      if (step === 4) populateReview();
+
+      updateStepIndicator();
+      updateNavButtons();
+
+      const scrollTarget = document.getElementById('wizardTop');
+      if (scrollTarget) scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // อัปเดตสีและสถานะของแถบขั้นตอนด้านบน (วงกลม + เส้นเชื่อม)
+    function updateStepIndicator() {
+      document.querySelectorAll('[data-step-indicator]').forEach(function(el) {
+        const num = parseInt(el.getAttribute('data-step-indicator'), 10);
+        const circle = el.querySelector('.step-circle');
+        const label = el.querySelector('.step-label');
+        if (num < currentStep) {
+          circle.className = 'step-circle w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-emerald-500 text-white transition-colors';
+          circle.innerHTML = '<i class="fa-solid fa-check text-xs"></i>';
+          label.className = 'step-label text-[10px] sm:text-xs font-semibold text-emerald-600 mt-1.5 text-center';
+        } else if (num === currentStep) {
+          circle.className = 'step-circle w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-pb-red text-white transition-colors';
+          circle.innerHTML = String(num);
+          label.className = 'step-label text-[10px] sm:text-xs font-bold text-pb-red mt-1.5 text-center';
+        } else {
+          circle.className = 'step-circle w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold bg-slate-200 text-slate-500 transition-colors';
+          circle.innerHTML = String(num);
+          label.className = 'step-label text-[10px] sm:text-xs font-medium text-slate-400 mt-1.5 text-center';
+        }
+      });
+      document.querySelectorAll('.step-connector').forEach(function(line, idx) {
+        line.className = (idx + 1 < currentStep)
+          ? 'step-connector flex-1 h-1 mx-1 sm:mx-2 rounded bg-emerald-500 transition-colors'
+          : 'step-connector flex-1 h-1 mx-1 sm:mx-2 rounded bg-slate-200 transition-colors';
+      });
+    }
+
+    // แสดง/ซ่อนปุ่มด้านล่างให้ตรงกับขั้นตอนปัจจุบัน
+    function updateNavButtons() {
+      document.getElementById('btnBack').classList.toggle('hidden', currentStep === 1);
+      document.getElementById('btnNext').classList.toggle('hidden', currentStep === 4);
+      document.getElementById('btnSubmit').classList.toggle('hidden', currentStep !== 4);
+      document.getElementById('btnCancel').classList.toggle('hidden', !(currentStep === 4 && isEditingExisting));
+    }
+
+    // สรุปข้อมูลที่กรอกไว้ทั้งหมด แสดงในหน้าตรวจสอบ/ยืนยัน (ขั้นตอนที่ 4)
+    function populateReview() {
+      const empId = document.getElementById('empId').value.trim();
+      const name = document.getElementById('name').value.trim();
+      const position = document.getElementById('position').value.trim();
+      const department = document.getElementById('department').value.trim();
+      const division = document.getElementById('division').value.trim();
+      const section = document.getElementById('section').value.trim();
+      const locationRadio = document.querySelector('input[name="location"]:checked');
+      const dateRadio = document.querySelector('input[name="date"]:checked');
+
+      document.getElementById('reviewEmpInfo').innerText =
+        empId + ' — ' + name + ' (' + position + ' / ' + department + ' / ' + division + ' / ' + section + ')';
+      document.getElementById('reviewLocation').innerText = locationRadio ? locationRadio.value : '-';
+      document.getElementById('reviewDate').innerText = dateRadio ? dateRadio.value : '-';
+    }
+    // =================== จบส่วน Wizard ===================
+
+    // ===================== Admin Mode =====================
+    // รหัสผ่านผู้ดูแลระบบที่ยืนยันแล้ว (เก็บไว้ในหน่วยความจำของเบราว์เซอร์เท่านั้น ไม่บันทึกถาวร)
+    let adminPassword = null;
+    let allAdminBookings = [];
+
+    // เปิดหน้าต่างสำหรับกรอกรหัสผ่านผู้ดูแลระบบ
+    function openAdminLogin() {
+      Swal.fire({
+        title: 'เข้าสู่ระบบผู้ดูแลระบบ',
+        input: 'password',
+        inputLabel: 'กรุณากรอกรหัสผ่านผู้ดูแลระบบ',
+        inputPlaceholder: 'รหัสผ่าน',
+        showCancelButton: true,
+        confirmButtonText: 'เข้าสู่ระบบ',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#DA251D',
+        inputAttributes: { autocapitalize: 'off', autocorrect: 'off' }
+      }).then((result) => {
+        if (!result.isConfirmed || !result.value) return;
+
+        Swal.fire({
+          title: 'กำลังตรวจสอบ...',
+          allowOutsideClick: false,
+          didOpen: () => { Swal.showLoading(); }
+        });
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res && res.success) {
+              adminPassword = result.value;
+              document.getElementById('adminStatusBar').classList.remove('hidden');
+              document.getElementById('btnAdminLogin').classList.add('hidden');
+              document.getElementById('adminPanel').classList.remove('hidden');
+              Swal.fire({
+                icon: 'success',
+                title: 'เข้าสู่ระบบสำเร็จ',
+                text: 'ขณะนี้คุณอยู่ในโหมดผู้ดูแลระบบ สามารถแก้ไข/ยกเลิกข้อมูลแทนพนักงานได้แม้เกินกำหนดเวลาล่วงหน้า',
+                confirmButtonColor: '#DA251D'
+              });
+              loadAdminBookings();
+            } else {
+              Swal.fire('รหัสผ่านไม่ถูกต้อง', 'กรุณาตรวจสอบรหัสผ่านผู้ดูแลระบบอีกครั้ง', 'error');
+            }
+          })
+          .withFailureHandler(function(err) {
+            Swal.fire('ข้อผิดพลาด', err.message || 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
+          })
+          .adminLogin(result.value);
+      });
+    }
+
+    // ออกจากโหมดผู้ดูแลระบบ
+    function adminLogout() {
+      adminPassword = null;
+      allAdminBookings = [];
+      document.getElementById('adminStatusBar').classList.add('hidden');
+      document.getElementById('btnAdminLogin').classList.remove('hidden');
+      document.getElementById('adminPanel').classList.add('hidden');
+      resetForm();
+    }
+
+    // โหลดรายการจองทั้งหมดจากเซิร์ฟเวอร์ (เฉพาะโหมดผู้ดูแลระบบ)
+    function loadAdminBookings() {
+      if (!adminPassword) return;
+      document.getElementById('adminTableBody').innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-slate-400">กำลังโหลดข้อมูล...</td></tr>';
+
+      google.script.run
+        .withSuccessHandler(function(list) {
+          allAdminBookings = list || [];
+          renderAdminTable();
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('adminTableBody').innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-red-500">โหลดข้อมูลไม่สำเร็จ: ' + (err.message || '') + '</td></tr>';
+        })
+        .adminGetAllBookings(adminPassword);
+    }
+
+    // วาดตารางรายการจองทั้งหมด พร้อมรองรับการค้นหา/กรอง
+    function renderAdminTable() {
+      const filterText = (document.getElementById('adminFilterInput').value || '').trim().toLowerCase();
+      const tbody = document.getElementById('adminTableBody');
+
+      const filtered = allAdminBookings.filter(function(b) {
+        if (!filterText) return true;
+        return (String(b.empId).toLowerCase().includes(filterText) || String(b.name).toLowerCase().includes(filterText));
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-slate-400">ไม่พบข้อมูล</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(function(b) {
+        const statusBadge = b.status === 'Cancelled'
+          ? '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">ยกเลิกแล้ว</span>'
+          : '<span class="inline-flex px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700">จองแล้ว</span>';
+        const cancelBtn = b.status === 'Cancelled'
+          ? ''
+          : '<button type="button" onclick="adminCancelRow(\'' + String(b.empId).replace(/'/g, "\\'") + '\')" class="text-red-600 hover:text-red-800 font-medium ml-2"><i class="fa-solid fa-ban"></i> ยกเลิก</button>';
+        return '<tr class="hover:bg-slate-50">' +
+          '<td class="px-3 py-2 font-semibold text-slate-700">' + escapeHtml(b.empId) + '</td>' +
+          '<td class="px-3 py-2">' + escapeHtml(b.name) + '</td>' +
+          '<td class="px-3 py-2 text-slate-500">' + escapeHtml(b.department) + ' / ' + escapeHtml(b.section) + '</td>' +
+          '<td class="px-3 py-2">' + escapeHtml(b.date) + '</td>' +
+          '<td class="px-3 py-2">' + statusBadge + '</td>' +
+          '<td class="px-3 py-2 text-center whitespace-nowrap">' +
+            '<button type="button" onclick="adminEditRow(\'' + String(b.empId).replace(/'/g, "\\'") + '\')" class="text-pb-red hover:text-pb-darkred font-medium"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>' +
+            cancelBtn +
+          '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    // ป้องกัน HTML injection เวลาแสดงข้อมูลในตาราง
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.innerText = (str === null || str === undefined) ? '' : String(str);
+      return div.innerHTML;
+    }
+
+    // โหลดข้อมูลของพนักงานคนที่เลือกจากตาราง Admin เข้าสู่ฟอร์มเพื่อแก้ไข
+    function adminEditRow(empId) {
+      if (!adminPassword) return;
+      document.getElementById('searchEmpId').value = empId;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+
+      Swal.fire({
+        title: 'กำลังโหลดข้อมูล...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+      });
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          Swal.close();
+          if (!data) return;
+          document.getElementById('empId').value = data.empId || '';
+          document.getElementById('name').value = data.name || '';
+          document.getElementById('position').value = data.position || '';
+          document.getElementById('department').value = data.department || '';
+          document.getElementById('division').value = data.division || '';
+          document.getElementById('section').value = data.section || '';
+
+          loadedBookingDate = data.date || null;
+
+          const locInput = document.querySelector(`input[name="location"][value="${data.location}"]`);
+          if (locInput) locInput.checked = true;
+
+          const dateInput = document.querySelector(`input[name="date"][value="${data.date}"]`);
+          if (dateInput) dateInput.checked = true;
+
+          document.getElementById('btnSubmit').innerHTML = '<i class="fa-solid fa-user-shield"></i> บันทึกการแก้ไข (Admin)';
+          isEditingExisting = true;
+
+          updateTicketPreview();
+          refreshAvailability();
+          goToStep(4, { skipValidation: true });
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire('ข้อผิดพลาด', err.message || 'ไม่สามารถโหลดข้อมูลได้', 'error');
+        })
+        .adminSearchBooking(empId, adminPassword);
+    }
+
+    // ยกเลิกการจองของพนักงานคนที่เลือกโดยตรงจากตาราง Admin
+    function adminCancelRow(empId) {
+      if (!adminPassword) return;
+
+      Swal.fire({
+        title: 'ยืนยันการยกเลิก?',
+        text: 'ต้องการยกเลิกการจองคิวของรหัสพนักงาน ' + empId + ' ใช่หรือไม่ (Admin สามารถยกเลิกได้แม้เกินกำหนดเวลา)',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#DA251D',
+        cancelButtonColor: '#64748B',
+        confirmButtonText: 'ยืนยันยกเลิกจอง',
+        cancelButtonText: 'ย้อนกลับ'
+      }).then((result) => {
+        if (!result.isConfirmed) return;
+
+        Swal.fire({
+          title: 'กำลังยกเลิก...',
+          allowOutsideClick: false,
+          didOpen: () => { Swal.showLoading(); }
+        });
+
+        google.script.run
+          .withSuccessHandler(function(res) {
+            if (res.success) {
+              Swal.fire({ icon: 'success', title: 'ยกเลิกสำเร็จ!', text: res.message, confirmButtonColor: '#DA251D' });
+              loadAdminBookings();
+              refreshAvailability();
+            } else {
+              Swal.fire('ข้อผิดพลาด', res.message, 'error');
+            }
+          })
+          .withFailureHandler(function(err) {
+            Swal.fire('ข้อผิดพลาด', err.message || 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error');
+          })
+          .adminCancelBooking(empId, adminPassword);
+      });
+    }
+    // =================== จบส่วน Admin Mode ===================
+
+    // ดึงจำนวนที่นั่งคงเหลือของทุกรอบจากฝั่งเซิร์ฟเวอร์ แล้วนำมาอัปเดตหน้าจอ
+    function refreshAvailability() {
+      google.script.run
+        .withSuccessHandler(renderAvailability)
+        .withFailureHandler(function(err) {
+          console.error('ไม่สามารถโหลดข้อมูลที่นั่งคงเหลือ:', err);
+        })
+        .getAvailability();
+    }
+
+    // แสดงจำนวนที่นั่งคงเหลือบนการ์ดแต่ละวัน และปิดการเลือกวันที่เต็มแล้ว
+    function renderAvailability(availability) {
+      if (!availability) return;
+
+      document.querySelectorAll('[data-date-tile]').forEach(function(label) {
+        const dateValue = label.getAttribute('data-date-tile');
+        const info = availability[dateValue];
+        const seatInfoEl = label.querySelector('.seat-info');
+        const radioInput = label.querySelector('input[name="date"]');
+        const tileDiv = label.querySelector('.radio-tile');
+        if (!info || !seatInfoEl || !radioInput || !tileDiv) return;
+
+        const isOwnCurrentDate = (loadedBookingDate === dateValue);
+
+        if (info.full && !isOwnCurrentDate) {
+          seatInfoEl.textContent = 'ที่นั่งเต็มแล้ว';
+          seatInfoEl.className = 'seat-info text-[10px] font-semibold mt-1 text-red-500';
+          radioInput.disabled = true;
+          tileDiv.classList.add('opacity-50', 'cursor-not-allowed');
+          label.classList.add('cursor-not-allowed');
+        } else {
+          radioInput.disabled = false;
+          tileDiv.classList.remove('opacity-50', 'cursor-not-allowed');
+          label.classList.remove('cursor-not-allowed');
+
+          if (isOwnCurrentDate) {
+            seatInfoEl.textContent = 'รอบที่คุณจองไว้';
+            seatInfoEl.className = 'seat-info text-[10px] font-semibold mt-1 text-pb-red';
+          } else if (info.remaining <= 3) {
+            seatInfoEl.textContent = 'เหลือ ' + info.remaining + ' ที่นั่ง';
+            seatInfoEl.className = 'seat-info text-[10px] font-semibold mt-1 text-amber-600';
+          } else {
+            seatInfoEl.textContent = 'เหลือ ' + info.remaining + ' ที่นั่ง';
+            seatInfoEl.className = 'seat-info text-[10px] font-semibold mt-1 text-emerald-600';
+          }
+        }
+      });
+    }
+
+    // Live preview update logic
+    function updateTicketPreview() {
+      const empId = document.getElementById('empId').value.trim();
+      const name = document.getElementById('name').value.trim();
+      const position = document.getElementById('position').value.trim();
+      const department = document.getElementById('department').value.trim();
+      
+      const locationRadio = document.querySelector('input[name="location"]:checked');
+      const dateRadio = document.querySelector('input[name="date"]:checked');
+
+      document.getElementById('previewEmpId').innerText = empId || '---';
+      document.getElementById('previewName').innerText = name || '--- ยังไม่ได้ระบุ ---';
+      document.getElementById('previewPos').innerText = (position || department) ? `${position} / ${department}` : '---';
+      
+      document.getElementById('previewLocation').innerText = locationRadio ? locationRadio.value : 'ยังไม่ได้เลือกจุดขึ้นรถ';
+      document.getElementById('previewDate').innerText = dateRadio ? dateRadio.value : 'ยังไม่ได้เลือกวันที่';
+
+      const statusBadge = document.getElementById('previewStatus');
+      if (document.getElementById('btnSubmit').innerText.includes('อัปเดต')) {
+        statusBadge.className = "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700";
+        statusBadge.innerText = "กำลังแก้ไขข้อมูล";
+      } else if (empId && name && locationRadio && dateRadio) {
+        statusBadge.className = "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700";
+        statusBadge.innerText = "พร้อมบันทึก";
+      } else {
+        statusBadge.className = "inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500";
+        statusBadge.innerText = "รอลงทะเบียน";
+      }
+    }
+
+    function submitForm() {
+      const form = document.getElementById('bookingForm');
+      const isAdmin = !!adminPassword;
+      
+      Swal.fire({
+        title: 'กำลังบันทึกข้อมูล...',
+        text: 'โปรดรอสักครู่ ระบบกำลังส่งข้อมูลเข้าฐานข้อมูล',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+      });
+
+      const runner = google.script.run
+        .withSuccessHandler(function(response) {
+          if(response.success) {
+            Swal.fire({
+              icon: 'success',
+              title: 'บันทึกสำเร็จ!',
+              text: response.message,
+              confirmButtonColor: '#DA251D',
+              confirmButtonText: 'ตกลง'
+            });
+            resetForm();
+            refreshAvailability();
+            if (isAdmin) loadAdminBookings();
+          } else {
+            Swal.fire({
+              icon: 'error',
+              title: 'ไม่สามารถดำเนินการได้',
+              text: response.message,
+              confirmButtonColor: '#DA251D'
+            });
+            refreshAvailability();
+          }
+        })
+        .withFailureHandler(function(error) { 
+          Swal.fire('ข้อผิดพลาดระบบ', error.message || 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', 'error'); 
+        });
+
+      if (isAdmin) {
+        runner.adminSaveBooking(form, adminPassword);
+      } else {
+        runner.saveBooking(form);
+      }
+    }
+
+    function searchBooking() {
+      const empId = document.getElementById('searchEmpId').value.trim();
+      if (!empId) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'แจ้งเตือน',
+          text: 'กรุณากรอกรหัสพนักงานก่อนทำการค้นหา',
+          confirmButtonColor: '#DA251D'
+        });
+        return;
+      }
+
+      Swal.fire({
+        title: 'กำลังค้นหา...',
+        text: `ตรวจสอบข้อมูลการจองรหัส ${empId}`,
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+      });
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          if (data) {
+            document.getElementById('empId').value = data.empId || '';
+            document.getElementById('name').value = data.name || '';
+            document.getElementById('position').value = data.position || '';
+            document.getElementById('department').value = data.department || '';
+            document.getElementById('division').value = data.division || '';
+            document.getElementById('section').value = data.section || '';
+
+            // จดจำวันที่จองเดิมของพนักงานคนนี้ เพื่อไม่ให้ระบบล็อกรอบเดิมของตัวเอง
+            loadedBookingDate = data.date || null;
+            
+            const locInput = document.querySelector(`input[name="location"][value="${data.location}"]`);
+            if (locInput) locInput.checked = true;
+
+            const dateInput = document.querySelector(`input[name="date"][value="${data.date}"]`);
+            if (dateInput) dateInput.checked = true;
+            
+            document.getElementById('btnSubmit').innerHTML = '<i class="fa-solid fa-pen-to-square"></i> อัปเดตข้อมูลการจอง';
+            isEditingExisting = true;
+            
+            updateTicketPreview();
+            refreshAvailability();
+
+            Swal.fire({
+              icon: 'success',
+              title: 'พบข้อมูลการจอง',
+              text: 'ระบบพาคุณไปยังหน้าตรวจสอบข้อมูล คุณสามารถกด "แก้ไข" ในแต่ละส่วนเพื่อเปลี่ยนสถานที่หรือวันที่เดินทางได้',
+              confirmButtonColor: '#DA251D'
+            }).then(function() {
+              goToStep(4, { skipValidation: true });
+            });
+          } else {
+            Swal.fire({
+              icon: 'info',
+              title: 'ไม่พบประวัติการจอง',
+              text: 'รหัสพนักงานนี้ยังไม่มีคิวในระบบ กรุณากรอกข้อมูลเพื่อจองคิวใหม่',
+              confirmButtonColor: '#DA251D'
+            });
+            document.getElementById('bookingForm').reset();
+            document.getElementById('empId').value = empId;
+            document.getElementById('btnSubmit').innerHTML = '<i class="fa-solid fa-paper-plane"></i> ยืนยันและบันทึกข้อมูล';
+            isEditingExisting = false;
+            loadedBookingDate = null;
+            goToStep(1, { skipValidation: true });
+            updateTicketPreview();
+            refreshAvailability();
+          }
+        })
+        .withFailureHandler(function(err) {
+          Swal.fire('ข้อผิดพลาด', err.message, 'error');
+        })
+        .getBooking(empId);
+    }
+
+    function cancelBookingAction() {
+      const empId = document.getElementById('empId').value;
+      if(!empId) return;
+      const isAdmin = !!adminPassword;
+      
+      Swal.fire({
+        title: 'ยืนยันการยกเลิก?',
+        text: "คุณต้องการยกเลิกคิวรถตรวจสุขภาพนี้ใช่หรือไม่ (สามารถจองใหม่ได้หากยังไม่หมดเขต)",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#DA251D',
+        cancelButtonColor: '#64748B',
+        confirmButtonText: 'ยืนยันยกเลิกจอง',
+        cancelButtonText: 'ย้อนกลับ'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          Swal.fire({
+            title: 'กำลังยกเลิก...',
+            allowOutsideClick: false,
+            didOpen: () => { Swal.showLoading(); }
+          });
+          
+          const runner = google.script.run
+            .withSuccessHandler(function(res) {
+              if(res.success) {
+                Swal.fire({
+                  icon: 'success',
+                  title: 'ยกเลิกสำเร็จ!',
+                  text: res.message,
+                  confirmButtonColor: '#DA251D'
+                });
+                resetForm();
+                refreshAvailability();
+                if (isAdmin) loadAdminBookings();
+              } else {
+                Swal.fire('ข้อผิดพลาด', res.message, 'error');
+                refreshAvailability();
+              }
+            })
+            .withFailureHandler(function(err) {
+              Swal.fire('ข้อผิดพลาด', err.message, 'error');
+            });
+
+          if (isAdmin) {
+            runner.adminCancelBooking(empId, adminPassword);
+          } else {
+            runner.cancelBooking(empId);
+          }
+        }
+      });
+    }
+
+    function resetForm() {
+      document.getElementById('bookingForm').reset();
+      document.getElementById('searchEmpId').value = '';
+      document.getElementById('btnSubmit').innerHTML = '<i class="fa-solid fa-paper-plane"></i> ยืนยันและบันทึกข้อมูล';
+      isEditingExisting = false;
+      loadedBookingDate = null;
+      goToStep(1, { skipValidation: true });
+      updateTicketPreview();
+    }
+
+    // Initialize preview on load
+    window.onload = function() {
+      updateStepIndicator();
+      updateNavButtons();
+      updateTicketPreview();
+      refreshAvailability();
+    };
+  </script>
+</body>
+</html>
