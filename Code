@@ -1,384 +1,376 @@
-// Google Sheet Configuration
-const SHEET_ID = '1BylxMGpdFX5pSSlBhHz-bzEjrqMimLIAbIgd-atheL4';
-const SHEET_NAME = 'Bookings';
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('index')
+      .setTitle('ระบบตรวจสอบสิทธิ์ตรวจสุขภาพประจำปี 2569 - PB')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
 
-// จำนวนที่นั่งสูงสุดต่อรอบ (นับตามวันที่เดินทาง 1 รอบ = รถ 1 คัน/1 วัน)
-const MAX_SEATS_PER_ROUND = 10;
+const SPREADSHEET_ID = '1U4KpoMwxx9qcMNkt8RdBX5QKGMgRfLznHTe8Kd2qbf0';
+const SHEET_NAME = 'รายชื่อตรวจสุขภาพ2569';
 
-// รายการวันที่เดินทางทั้งหมดที่เปิดให้จอง (ใช้สำหรับสร้างตารางที่นั่งคงเหลือ)
-const AVAILABLE_DATES = [
-  '24 กันยายน 2569',
-  '1 ตุลาคม 2569',
-  '8 ตุลาคม 2569',
-  '15 ตุลาคม 2569'
+function getSheetData() {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) throw new Error('ไม่พบชีทชื่อ "' + SHEET_NAME + '"');
+  return sheet.getDataRange().getValues();
+}
+
+// FIX: ตัดช่องว่าง/อักขระที่มองไม่เห็น และรวมรูปแบบยูนิโค้ดให้เป็นมาตรฐานเดียวกัน (NFC)
+// ก่อนเทียบค่าทุกครั้ง เดิมใช้ === เทียบ string ตรงๆ ถ้าข้อมูลในชีทมีช่องว่างเกินมา
+// (เช่น "ฝ่ายผลิต " มีเว้นวรรคท้าย) หรือพิมพ์สระ/วรรณยุกต์ไทยด้วยลำดับยูนิโค้ดต่างกัน
+// (พบได้บ่อยเวลาพิมพ์ข้อมูลใน Sheets) การเทียบจะไม่ตรงกันเลยแม้ตาเห็นข้อความเหมือนกัน
+// ทำให้ dropdown เลือกแล้วค้นหาไม่เจอข้อมูลเลย นี่คือสาเหตุหลักที่ต้องแก้
+function normalizeText_(value) {
+  return String(value == null ? '' : value).trim().normalize('NFC');
+}
+
+// แปลงค่าวันที่จาก Sheet ให้เป็นข้อความรูปแบบ dd/MM/yyyy เสมอ โดยปีเป็น "พ.ศ." (ค.ศ. + 543)
+// เดิมถ้าคอลัมน์ K เป็น Date object ของ Google Sheets แล้วส่งตรงไปที่ Client
+// จะถูกแปลงเป็น ISO string แบบเต็ม (พร้อมเวลา/timezone) ซึ่งอ่านยากและอาจ
+// คลาดเคลื่อนวันที่ได้ถ้า timezone ของผู้ใช้ต่างจาก timezone ของสเปรดชีต
+// ฟังก์ชันนี้จึงบังคับ format ที่ฝั่งเซิร์ฟเวอร์ด้วย timezone ของสเปรดชีตเสมอ
+// FIX: เพิ่มการแปลงปี ค.ศ. -> พ.ศ. (+543) ทั้งกรณี Date object และกรณีที่ Sheet
+// เก็บวันที่มาเป็นข้อความอยู่แล้วในรูปแบบ dd/mm/yyyy ที่ยังเป็นปี ค.ศ.
+function formatDateValue_(value) {
+  const tz = SpreadsheetApp.openById(SPREADSHEET_ID).getSpreadsheetTimeZone();
+
+  if (value instanceof Date) {
+    const day = Utilities.formatDate(value, tz, 'dd');
+    const month = Utilities.formatDate(value, tz, 'MM');
+    const adYear = Number(Utilities.formatDate(value, tz, 'yyyy'));
+    return day + '/' + month + '/' + toBuddhistYear_(adYear);
+  }
+
+  const text = normalizeText_(value);
+  if (!text) return '-';
+
+  // ถ้าเป็นข้อความรูปแบบ d/m/yyyy หรือ dd/mm/yyyy อยู่แล้ว ให้เช็คว่าปีเป็น ค.ศ. หรือยัง
+  const match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    const day = match[1].length === 1 ? '0' + match[1] : match[1];
+    const month = match[2].length === 1 ? '0' + match[2] : match[2];
+    const year = Number(match[3]);
+    return day + '/' + month + '/' + toBuddhistYear_(year);
+  }
+
+  return text;
+}
+
+// แปลงปี ค.ศ. เป็น พ.ศ. (+543) โดยเช็คก่อนว่ายังไม่ใช่ปี พ.ศ. อยู่แล้ว
+// (กันกรณีข้อมูลบางแถวถูกกรอกเป็น พ.ศ. มาแต่ต้น ไม่ให้บวกซ้ำเป็น +1086)
+function toBuddhistYear_(year) {
+  return year < 2400 ? year + 543 : year;
+}
+
+// นอกจากคืนรายชื่อฝ่าย/ส่วน/แผนกแบบไม่ซ้ำแล้ว ยังคืน "combos" (คู่ความสัมพันธ์จริงของแต่ละแถว)
+// เพื่อให้ฝั่ง Client เอาไปกรอง dropdown แบบไล่ระดับ (ฝ่าย -> ส่วน -> แผนก) ได้ถูกต้องตอนใช้งานจริง
+function getInitialFilters() {
+  const rows = getSheetData();
+  if (rows.length <= 1) return { depts: [], sections: [], units: [], combos: [] };
+
+  const depts = new Set();
+  const sections = new Set();
+  const units = new Set();
+  const combos = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const dept = normalizeText_(rows[i][2]);
+    const section = normalizeText_(rows[i][3]);
+    const unit = normalizeText_(rows[i][4]);
+
+    if (dept) depts.add(dept);
+    if (section) sections.add(section);
+    if (unit) units.add(unit);
+    if (dept || section || unit) combos.push({ dept: dept, section: section, unit: unit });
+  }
+
+  return {
+    depts: Array.from(depts).sort(),
+    sections: Array.from(sections).sort(),
+    units: Array.from(units).sort(),
+    combos: combos
+  };
+}
+
+function searchData(dept, section, unit, empId) {
+  const rows = getSheetData();
+  if (rows.length <= 1) return [];
+
+  const results = [];
+
+  // FIX: normalize ค่าที่ส่งมาจากฝั่ง Client (dropdown / ช่องกรอกรหัสพนักงาน) ก่อนเทียบ
+  const qEmpId = normalizeText_(empId).toLowerCase();
+  const qDept = normalizeText_(dept);
+  const qSection = normalizeText_(section);
+  const qUnit = normalizeText_(unit);
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    const rowEmpId = normalizeText_(row[0]);
+    const rowDept = normalizeText_(row[2]);
+    const rowSection = normalizeText_(row[3]);
+    const rowUnit = normalizeText_(row[4]);
+
+    // Check Filter Criteria
+    if (qEmpId) {
+      if (rowEmpId.toLowerCase().indexOf(qEmpId) !== -1) {
+        results.push(formatRow(row));
+      }
+    } else {
+      let match = true;
+      if (qDept && rowDept !== qDept) match = false;
+      if (qSection && rowSection !== qSection) match = false;
+      if (qUnit && rowUnit !== qUnit) match = false;
+
+      if (match) {
+        results.push(formatRow(row));
+      }
+    }
+  }
+  return results;
+}
+
+// FIX: เปลี่ยนจากการไล่เก็บ "รายการตรวจสุขภาพ" แบบไดนามิกทีละคอลัมน์ (เดิมเริ่มที่
+// คอลัมน์ G เป็นต้นไป โดยอิงชื่อ header) มาเป็นการดึงค่าตรงตามตำแหน่งคอลัมน์จริงของชีท
+// ตามที่ระบุไว้: A รหัสพนักงาน, B ชื่อ, C ฝ่าย, D ส่วน, E แผนก, F ตำแหน่ง,
+// G วันที่บรรจุ, H โปรแกรมหลัก, I ตรวจปัจจัยเสี่ยง, J สถานที่ตรวจ, K วันที่ตรวจ
+// FIX: คอลัมน์ G เดิมถูกข้ามไปเฉยๆ ตอนนี้นำมาใช้เป็น "วันที่บรรจุ" ของพนักงาน
+// และแปลงปีเป็น พ.ศ. ผ่าน formatDateValue_ เช่นเดียวกับวันที่ตรวจสุขภาพ
+// รายการตรวจปัจจัยเสี่ยง (คอลัมน์ L-P ของชีท) ใช้ร่วมกันทั้ง formatRow และ generateDeptPdf
+// col = ลำดับคอลัมน์แบบ 0-based (A=0 ... L=11, M=12, N=13, O=14, P=15)
+const RISK_ITEMS = [
+  { key: 'hepA',     label: 'ไวรัสตับอักเสบ เอ', col: 11 }, // L
+  { key: 'stool',    label: 'Stool Culture',      col: 12 }, // M
+  { key: 'audio',    label: 'Audiogram',          col: 13 }, // N
+  { key: 'confined', label: 'พื้นที่อับอากาศ',    col: 14 }, // O
+  { key: 'chemical', label: 'สารเคมี',            col: 15 }  // P
 ];
 
-// จำนวนวันล่วงหน้าที่อนุญาตให้แก้ไข/ยกเลิกได้ก่อนถึงวันตรวจ
-const LOCK_DAYS_BEFORE = 2;
-
-// รหัสผ่านสำหรับผู้ดูแลระบบ (Admin) ใช้สำหรับแก้ไข/ยกเลิกข้อมูลแทนพนักงาน
-// แม้จะเกินกำหนดเวลาที่อนุญาตให้แก้ไขได้ล่วงหน้า (LOCK_DAYS_BEFORE) แล้วก็ตาม
-const ADMIN_PASSWORD = 'wf1982';
-
-function doGet(e) {
-  return HtmlService.createTemplateFromFile('index')
-      .evaluate()
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
-      .setTitle('ระบบจองคิวรถตรวจสุขภาพประจำปี - บริษัท เพรซิเดนท์ เบเกอรี่ จำกัด (มหาชน)');
+// ช่องที่ "มีข้อมูล" = ไม่ว่าง และไม่ใช่ค่าที่สื่อว่าไม่ตรวจ (-, ไม่ตรวจ, ไม่มี, 0, no ฯลฯ)
+function hasRiskValue_(value) {
+  const t = normalizeText_(value).toLowerCase();
+  if (!t) return false;
+  return ['-', '--', '0', 'no', 'n', 'false', 'ไม่ตรวจ', 'ไม่มี', 'ไม่'].indexOf(t) === -1;
 }
 
-// ดึงวัตถุ Sheet พร้อมระบบตรวจสอบและสร้างหัวตารางอัตโนมัติ
-function getSheet() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
-  let sheet = ss.getSheetByName(SHEET_NAME);
-  
-  // กรณีหาชื่อแท็บไม่เจอ ให้ใช้แท็บแรกสุดในไฟล์
-  if (!sheet) {
-    sheet = ss.getSheets()[0];
-  }
-  
-  // กรณีเป็นชีทใหม่ที่ยังไม่มีข้อมูล ให้สร้างหัวตารางอัตโนมัติ
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow([
-      'รหัสพนักงาน', 
-      'ชื่อ-สกุล', 
-      'ตำแหน่ง', 
-      'ฝ่าย', 
-      'ส่วน', 
-      'แผนก', 
-      'สถานที่ขึ้นรถ', 
-      'วันที่ตรวจ', 
-      'สถานะ', 
-      'เวลาทำรายการ'
-    ]);
-    
-    // ตกแต่งแถวหัวตาราง (Header) สไตล์สีแดงเพรซิเดนท์ เบเกอรี่
-    const headerRange = sheet.getRange(1, 1, 1, 10);
-    headerRange.setFontWeight('bold')
-               .setBackground('#DA251D')
-               .setFontColor('#FFFFFF')
-               .setHorizontalAlignment('center');
-  }
-  
-  return sheet;
+// "โปรแกรมหลัก" (คอลัมน์ H): มีสิทธิ์ตรวจ = มีข้อความ และไม่ได้ขึ้นต้นด้วย "ไม่ได้รับสิทธิ"/"ไม่มีสิทธิ"
+// ว่าง หรือ "-" ถือว่าไม่มีสิทธิ์
+function hasCheckupRight_(value) {
+  const t = normalizeText_(value);
+  if (!t || t === '-') return false;
+  return !/^ไม่(ได้รับ|มี)สิทธิ/.test(t);
 }
 
-// ค้นหาข้อมูลการจองปัจจุบันจากรหัสพนักงาน
-function getBooking(empId) {
-  try {
-    if (!empId) return null;
-    const sheet = getSheet();
-    const data = sheet.getDataRange().getDisplayValues();
-    
-    if (data.length <= 1) return null; // มีแค่หัวตารางหรือไม่มีข้อมูล
-    
-    const searchId = String(empId).trim();
-    
-    for (let i = 1; i < data.length; i++) {
-      // ค้นหาแถวที่ตรงกับรหัสพนักงาน และสถานะไม่ใช่ Cancelled
-      if (String(data[i][0]).trim() === searchId && data[i][8] !== 'Cancelled') {
-        return {
-          empId: data[i][0],
-          name: data[i][1],
-          position: data[i][2],
-          department: data[i][3],
-          division: data[i][4],
-          section: data[i][5],
-          location: data[i][6],
-          date: data[i][7],
-          status: data[i][8],
-          row: i + 1
-        };
-      }
-    }
-    return null;
-  } catch (err) {
-    Logger.log('Error in getBooking: ' + err.toString());
-    throw new Error('ไม่สามารถดึงข้อมูลจาก Google Sheet ได้: ' + err.message);
-  }
-}
+function formatRow(row) {
+  const risks = {};
+  RISK_ITEMS.forEach(function (item) { risks[item.key] = hasRiskValue_(row[item.col]); });
 
-// แปลงวันที่แบบข้อความเป็น Object Date สำหรับใช้ตรวจสอบเงื่อนไขล็อกวัน
-function parseThaiDate(dateStr) {
-  if (!dateStr) return null;
-  const map = {
-    '24 กันยายน 2569': new Date(2026, 8, 24), // เดือนเริ่มจาก 0 (8 = กันยายน)
-    '1 ตุลาคม 2569': new Date(2026, 9, 1),
-    '8 ตุลาคม 2569': new Date(2026, 9, 8),
-    '15 ตุลาคม 2569': new Date(2026, 9, 15)
+  return {
+    empId: String(row[0] || ''),
+    name: String(row[1] || 'ไม่ระบุชื่อ'),
+    dept: String(row[2] || '-'),
+    section: String(row[3] || '-'),
+    unit: String(row[4] || '-'),
+    position: String(row[5] || '-'),
+    hireDate: formatDateValue_(row[6]),           // คอลัมน์ G - วันที่บรรจุ (พ.ศ.)
+    mainProgram: normalizeText_(row[7]) || '-',   // คอลัมน์ H
+    hasRight: hasCheckupRight_(row[7]),           // true = มีสิทธิ์ตรวจ / false = ไม่มีสิทธิ์ตรวจ
+    riskCheck: normalizeText_(row[8]) || '-',     // คอลัมน์ I (เก็บไว้เผื่อหน้าเว็บยังใช้ แต่ PDF ไม่ใช้แล้ว)
+    location: normalizeText_(row[9]) || '-',      // คอลัมน์ J
+    checkDate: formatDateValue_(row[10]),         // คอลัมน์ K
+    risks: risks                                  // คอลัมน์ L-P: true/false ต่อรายการ
   };
-  return map[dateStr.trim()] || null;
 }
 
-// ตรวจสอบว่าเกินกำหนดเวลาที่ให้แก้ไข/ยกเลิกได้หรือไม่ (ล่วงหน้าอย่างน้อย LOCK_DAYS_BEFORE วัน)
-function checkLock(dateStr) {
-  const bookDate = parseThaiDate(dateStr);
-  if (!bookDate) return false;
-  
-  const today = new Date();
-  today.setHours(0, 0, 0, 0); // รีเซ็ตเวลาเป็นเที่ยงคืนเพื่อเปรียบเทียบเฉพาะวันที่
-  
-  const lockDate = new Date(bookDate);
-  lockDate.setDate(lockDate.getDate() - LOCK_DAYS_BEFORE); // วันล๊อกสิทธิ์คือ LOCK_DAYS_BEFORE วันก่อนวันเดินทาง
-  
-  return today >= lockDate;
-}
-
-// นับจำนวนคนที่จองไว้แล้วในรอบ (วันที่เดินทาง) ที่ระบุ
-// excludeEmpId: ใช้เพื่อไม่นับแถวของพนักงานคนที่กำลังทำรายการเอง (กรณีแก้ไขข้อมูลเดิม)
-function countBookedInRound(dateStr, excludeEmpId) {
-  const sheet = getSheet();
-  const data = sheet.getDataRange().getDisplayValues();
-  let count = 0;
-
-  for (let i = 1; i < data.length; i++) {
-    const rowEmpId = String(data[i][0]).trim();
-    if (excludeEmpId && rowEmpId === String(excludeEmpId).trim()) continue; // ข้ามแถวของตัวเอง
-
-    if (data[i][7] === dateStr && data[i][8] !== 'Cancelled') {
-      count++;
-    }
+// ---------------------------------------------------------------------
+// สร้างไฟล์ PDF ฝั่งเซิร์ฟเวอร์ด้วย Google Docs (DocumentApp) แทนการใช้
+// html2canvas/html2pdf.js หรือ window.print() ฝั่ง client เหตุผลคือ Google Docs
+// ใช้ตัวเรนเดอร์ข้อความจริงของ Google เอง จัดสระ/วรรณยุกต์ภาษาไทย (combining
+// characters) ถูกต้อง 100% และไม่ต้องพาข้อมูลสุขภาพพนักงาน (ข้อมูลอ่อนไหว
+// ตาม PDPA) ออกไปประมวลผลนอก Google Workspace ขององค์กรเลย
+//
+// วิธีทำ: 1) ดึงข้อมูลด้วย searchData() แบบเดิม 2) สร้าง Google Doc ชั่วคราว
+// ใส่หัวเอกสาร+ตาราง 3) แปลงเป็น PDF ด้วย getAs(MimeType.PDF) 4) เข้ารหัส
+// base64 ส่งกลับให้ client แปลงเป็นไฟล์ดาวน์โหลดเอง 5) ลบ Google Doc ชั่วคราว
+// ทิ้งจาก Drive ทันที ไม่ให้ค้างเกะกะ (เหลือแค่ PDF ที่ส่งกลับไปเท่านั้น)
+// ---------------------------------------------------------------------
+function generateDeptPdf(dept, section, unit) {
+  const results = searchData(dept, section, unit, '');
+  if (!results || results.length === 0) {
+    throw new Error('ไม่พบข้อมูลตามเงื่อนไขที่เลือก');
   }
 
-  return count;
-}
+  const deptLabel = dept || 'ทุกฝ่าย';
+  const secLabel = section || 'ทุกส่วน';
+  const unitLabel = unit || 'ทุกแผนก';
 
-// ดึงจำนวนที่นั่งคงเหลือของทุกรอบ (วันที่เดินทาง) เพื่อส่งให้ฝั่ง Client แสดงผลแบบ Real-time
-function getAvailability() {
+  // เลือกเฉพาะรายการปัจจัยเสี่ยงที่ "มีพนักงานอย่างน้อย 1 คน" ในกลุ่มที่เลือกมีข้อมูล
+  // เช่น กลุ่มนี้ไม่มีใครตรวจพื้นที่อับอากาศ ก็จะไม่สร้างคอลัมน์นั้นในตาราง
+  const activeRisks = RISK_ITEMS.filter(function (item) {
+    return results.some(function (emp) { return emp.risks[item.key]; });
+  });
+
+  const doc = DocumentApp.create('tmp_healthcheck_' + new Date().getTime());
+  const docId = doc.getId();
+
   try {
-    const sheet = getSheet();
-    const data = sheet.getDataRange().getDisplayValues();
+    const body = doc.getBody();
 
-    const counts = {};
-    AVAILABLE_DATES.forEach(d => { counts[d] = 0; });
+    const MARGIN = 28; // ~10mm
+    body.setPageWidth(841.68);   // A4 แนวนอน
+    body.setPageHeight(595.32);
+    body.setMarginTop(MARGIN);
+    body.setMarginBottom(MARGIN);
+    body.setMarginLeft(MARGIN);
+    body.setMarginRight(MARGIN);
 
-    for (let i = 1; i < data.length; i++) {
-      const d = data[i][7];
-      const status = data[i][8];
-      if (status !== 'Cancelled' && counts.hasOwnProperty(d)) {
-        counts[d]++;
-      }
-    }
+    // วันที่พิมพ์เป็นภาษาไทย พ.ศ.
+    const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน',
+                         'กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    const now = new Date();
+    const printDate = Number(Utilities.formatDate(now, 'Asia/Bangkok', 'd')) + ' ' +
+        THAI_MONTHS[Number(Utilities.formatDate(now, 'Asia/Bangkok', 'M')) - 1] + ' ' +
+        (Number(Utilities.formatDate(now, 'Asia/Bangkok', 'yyyy')) + 543);
 
-    const result = {};
-    AVAILABLE_DATES.forEach(d => {
-      const booked = counts[d];
-      result[d] = {
-        booked: booked,
-        remaining: Math.max(0, MAX_SEATS_PER_ROUND - booked),
-        maxSeats: MAX_SEATS_PER_ROUND,
-        full: booked >= MAX_SEATS_PER_ROUND
-      };
+    // ---------- หัวเอกสาร ----------
+    body.appendParagraph('บริษัท เพรซิเดนท์ เบเกอรี่ จำกัด (มหาชน)')
+        .setFontSize(14).setBold(true).setForegroundColor('#0B4A45')
+        .setSpacingAfter(0);
+
+    body.appendParagraph('ระบบตรวจสอบสิทธิ์ตรวจสุขภาพประจำปี 2569')
+        .setFontSize(10).setForegroundColor('#555555')
+        .setSpacingAfter(6);
+
+    const contextText = 'ฝ่าย: ' + deptLabel + '   |   ส่วน: ' + secLabel +
+        '   |   แผนก: ' + unitLabel + '   |   พนักงานทั้งหมด: ' + results.length + ' คน' +
+        '   |   พิมพ์เมื่อ ' + printDate;
+    body.appendParagraph(contextText)
+        .setFontSize(9).setBold(true).setForegroundColor('#0B4A45')
+        .setSpacingAfter(10);
+
+    // ---------- ตาราง ----------
+    const baseHeads = ['ลำดับ', 'รหัสพนักงาน', 'ชื่อ-นามสกุล', 'ตำแหน่ง', 'วันที่บรรจุ', 'โปรแกรมหลัก'];
+    const headTexts = baseHeads.concat(activeRisks.map(function (r) { return r.label; }));
+    const baseCount = baseHeads.length;
+    const tableData = [headTexts];
+
+    results.forEach(function (emp, i) {
+      const row = [String(i + 1), emp.empId, emp.name, emp.position, emp.hireDate, emp.hasRight ? '\u2713' : '\u2717'];
+
+      // พนักงานที่ไม่มีข้อมูลปัจจัยเสี่ยงเลย (L-P ว่างทั้งหมด) -> เว้นช่องว่างไว้ ไม่ใส่อะไร
+      // พนักงานที่มีอย่างน้อย 1 รายการ -> มี = ?, ไม่มี = -
+      const hasAny = RISK_ITEMS.some(function (item) { return emp.risks[item.key]; });
+      activeRisks.forEach(function (item) {
+        row.push(hasAny ? (emp.risks[item.key] ? '\u2713' : '-') : '');
+      });
+      tableData.push(row);
     });
 
-    return result;
-  } catch (err) {
-    Logger.log('Error in getAvailability: ' + err.toString());
-    throw new Error('ไม่สามารถดึงข้อมูลที่นั่งคงเหลือได้: ' + err.message);
-  }
-}
+    const table = body.appendTable(tableData);
 
-// บันทึก หรือ อัปเดตข้อมูลการจอง (ใช้งานปกติโดยพนักงาน - ยึดตามกฎการล็อกวัน)
-function saveBooking(formObject) {
-  return saveBookingInternal(formObject, false);
-}
-
-// เวอร์ชันสำหรับผู้ดูแลระบบ: ตรวจสอบรหัสผ่านก่อน แล้วบันทึก/อัปเดตข้อมูลได้
-// แม้จะเกินกำหนดเวลาที่อนุญาตให้แก้ไขล่วงหน้าแล้วก็ตาม (ยังคงตรวจสอบที่นั่งคงเหลือตามปกติ)
-function adminSaveBooking(formObject, password) {
-  if (!verifyAdminPassword(password)) {
-    return { success: false, message: 'รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง' };
-  }
-  return saveBookingInternal(formObject, true);
-}
-
-// ฟังก์ชันหลักที่ใช้บันทึก/อัปเดตข้อมูลการจองจริง
-// bypassLock = true จะข้ามการตรวจสอบวันหมดเขตแก้ไข (สำหรับ Admin เท่านั้น)
-function saveBookingInternal(formObject, bypassLock) {
-  try {
-    if (!formObject || !formObject.empId) {
-      return { success: false, message: 'กรุณากรอกรหัสพนักงานให้ครบถ้วน' };
+    // ความกว้างคอลัมน์: คอลัมน์หลักรวม 65% ที่เหลือ 35% แบ่งเท่าๆ กันให้คอลัมน์ปัจจัยเสี่ยง
+    // ถ้ากลุ่มนี้ไม่มีปัจจัยเสี่ยงเลย ให้ขยายคอลัมน์หลักเต็มความกว้าง
+    const usableWidth = 841.68 - MARGIN * 2;
+    const baseRatios = [0.04, 0.09, 0.16, 0.14, 0.09, 0.13];
+    const baseSum = baseRatios.reduce(function (a, b) { return a + b; }, 0);
+    const riskTotal = activeRisks.length ? 0.35 : 0;
+    const colRatios = baseRatios.map(function (r) { return r / baseSum * (1 - riskTotal); });
+    activeRisks.forEach(function () { colRatios.push(riskTotal / activeRisks.length); });
+    for (let c = 0; c < colRatios.length; c++) {
+      table.setColumnWidth(c, usableWidth * colRatios[c]);
     }
 
-    const sheet = getSheet();
-    const timestamp = Utilities.formatDate(new Date(), 'GMT+7', 'yyyy-MM-dd HH:mm:ss');
-    const empIdTrimmed = String(formObject.empId).trim();
-    const existing = getBooking(empIdTrimmed);
-    const requestedDate = formObject.date || '';
-    
-    if (existing) {
-      // ตรวจสอบว่าหมดเขตแก้ไขล่วงหน้าตามจำนวนวันที่กำหนดหรือยัง (ยกเว้นกรณี Admin ที่ bypassLock = true)
-      if (!bypassLock && checkLock(existing.date)) {
-        return { 
-          success: false, 
-          message: 'ไม่สามารถแก้ไขได้ เนื่องจากหมดเขตการเปลี่ยนแปลง (ต้องทำก่อนวันตรวจล่วงหน้าอย่างน้อย ' + LOCK_DAYS_BEFORE + ' วัน)' 
-        };
+    const CENTER = DocumentApp.HorizontalAlignment.CENTER;
+    const MAIN_COL = 5; // คอลัมน์ "โปรแกรมหลัก" (นับจาก 0)
+
+    // แถวหัวตาราง
+    const headerRow = table.getRow(0);
+    for (let c = 0; c < headTexts.length; c++) {
+      const cell = headerRow.getCell(c);
+      cell.setBackgroundColor('#F0FDFA');
+      cell.editAsText().setBold(true).setFontSize(9).setForegroundColor('#0f5852');
+      cell.setPaddingTop(4).setPaddingBottom(4).setPaddingLeft(4).setPaddingRight(4);
+      if (c >= baseCount || c === MAIN_COL) cell.getChild(0).asParagraph().setAlignment(CENTER);
+    }
+    // แถวข้อมูล
+    for (let r = 1; r < table.getNumRows(); r++) {
+      for (let c = 0; c < headTexts.length; c++) {
+        const cell = table.getRow(r).getCell(c);
+        cell.editAsText().setFontSize(8.5).setBold(false);
+        cell.setPaddingTop(3).setPaddingBottom(3).setPaddingLeft(4).setPaddingRight(4);
+        if (c === MAIN_COL) {
+          cell.getChild(0).asParagraph().setAlignment(CENTER);
+          const granted = cell.getText() === '\u2713';
+          // มีสิทธิ์ตรวจ = ? สีเขียว / ไม่มีสิทธิ์ตรวจ = ? สีแดง
+          cell.editAsText().setBold(true).setFontSize(10)
+              .setForegroundColor(granted ? '#16A34A' : '#DC2626');
+        }
+        if (c >= baseCount) {
+          cell.getChild(0).asParagraph().setAlignment(CENTER);
+          if (cell.getText() === '\u2713') {
+            cell.editAsText().setBold(true).setFontSize(10).setForegroundColor('#0f5852');
+          }
+        }
       }
+    }
 
-      // ตรวจสอบที่นั่งคงเหลือของรอบที่เลือก (ไม่นับแถวของตัวเอง เผื่อกรณีเลือกรอบเดิม)
-      const bookedCount = countBookedInRound(requestedDate, empIdTrimmed);
-      if (bookedCount >= MAX_SEATS_PER_ROUND) {
-        return {
-          success: false,
-          message: 'ไม่สามารถบันทึกได้ เนื่องจากรอบวันที่ ' + requestedDate + ' มีผู้จองครบ ' + MAX_SEATS_PER_ROUND + ' ที่นั่งแล้ว กรุณาเลือกรอบวันที่อื่น'
-        };
+    doc.saveAndClose();
+
+    // ---------- ตรึงแถวหัวตารางให้ซ้ำทุกหน้า ----------
+    // DocumentApp ไม่มีคำสั่งตรึงหัวตาราง จึงเรียกผ่าน Google Docs API (Advanced Service)
+    // ต้องเปิด Services > Google Docs API ใน Apps Script ก่อน (ดูวิธีท้ายคำตอบ)
+    // ถ้ายังไม่เปิด PDF จะยังสร้างได้ตามปกติ แต่หน้า 2 เป็นต้นไปจะไม่มีหัวตาราง
+    try {
+      const gdoc = Docs.Documents.get(docId);
+      let tableStart = null;
+      (gdoc.body.content || []).forEach(function (el) {
+        if (el.table && tableStart === null) tableStart = el.startIndex;
+      });
+      if (tableStart !== null) {
+        Docs.Documents.batchUpdate({
+          requests: [{
+            pinTableHeaderRows: {
+              tableStartLocation: { index: tableStart },
+              pinnedHeaderRowsCount: 1
+            }
+          }]
+        }, docId);
       }
-      // อัปเดตข้อมูลทับแถวเดิม
-      sheet.getRange(existing.row, 1, 1, 10).setValues([[
-        empIdTrimmed, 
-        formObject.name ? formObject.name.trim() : '', 
-        formObject.position ? formObject.position.trim() : '', 
-        formObject.department ? formObject.department.trim() : '',
-        formObject.division ? formObject.division.trim() : '', 
-        formObject.section ? formObject.section.trim() : '', 
-        formObject.location || '', 
-        formObject.date || '', 
-        'Booked', 
-        timestamp
-      ]]);
-      return { success: true, message: 'อัปเดตข้อมูลการจองคิวสำเร็จเรียบร้อยแล้ว' };
-    } else {
-      // ตรวจสอบที่นั่งคงเหลือของรอบที่เลือก ก่อนเพิ่มข้อมูลใหม่
-      const bookedCount = countBookedInRound(requestedDate, null);
-      if (bookedCount >= MAX_SEATS_PER_ROUND) {
-        return {
-          success: false,
-          message: 'ไม่สามารถบันทึกได้ เนื่องจากรอบวันที่ ' + requestedDate + ' มีผู้จองครบ ' + MAX_SEATS_PER_ROUND + ' ที่นั่งแล้ว กรุณาเลือกรอบวันที่อื่น'
-        };
-      }
-
-      // เพิ่มข้อมูลใหม่
-      sheet.appendRow([
-        empIdTrimmed, 
-        formObject.name ? formObject.name.trim() : '', 
-        formObject.position ? formObject.position.trim() : '', 
-        formObject.department ? formObject.department.trim() : '',
-        formObject.division ? formObject.division.trim() : '', 
-        formObject.section ? formObject.section.trim() : '', 
-        formObject.location || '', 
-        formObject.date || '', 
-        'Booked', 
-        timestamp
-      ]);
-      return { success: true, message: 'บันทึกข้อมูลการจองคิวสำเร็จเรียบร้อยแล้ว' };
-    }
-  } catch (e) {
-    return { success: false, message: 'เกิดข้อผิดพลาดขณะบันทึกข้อมูล: ' + e.toString() };
-  }
-}
-
-// ยกเลิกการจอง (ใช้งานปกติโดยพนักงาน - ยึดตามกฎการล็อกวัน)
-function cancelBooking(empId) {
-  return cancelBookingInternal(empId, false);
-}
-
-// เวอร์ชันสำหรับผู้ดูแลระบบ: ตรวจสอบรหัสผ่านก่อน แล้วยกเลิกการจองแทนพนักงานได้
-// แม้จะเกินกำหนดเวลาที่อนุญาตให้ยกเลิกล่วงหน้าแล้วก็ตาม
-function adminCancelBooking(empId, password) {
-  if (!verifyAdminPassword(password)) {
-    return { success: false, message: 'รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง' };
-  }
-  return cancelBookingInternal(empId, true);
-}
-
-// ฟังก์ชันหลักที่ใช้ยกเลิกการจองจริง
-// bypassLock = true จะข้ามการตรวจสอบวันหมดเขตยกเลิก (สำหรับ Admin เท่านั้น)
-function cancelBookingInternal(empId, bypassLock) {
-  try {
-    if (!empId) {
-      return { success: false, message: 'ไม่พบรหัสพนักงาน' };
+    } catch (e) {
+      Logger.log('ตรึงหัวตารางไม่สำเร็จ (ยังไม่ได้เปิด Docs API?): ' + e);
     }
 
-    const sheet = getSheet();
-    const empIdTrimmed = String(empId).trim();
-    const existing = getBooking(empIdTrimmed);
-    
-    if (existing) {
-      // ตรวจสอบว่าหมดเขตยกเลิกตามจำนวนวันที่กำหนดหรือยัง (ยกเว้นกรณี Admin ที่ bypassLock = true)
-      if (!bypassLock && checkLock(existing.date)) {
-        return { 
-          success: false, 
-          message: 'ไม่สามารถยกเลิกได้ เนื่องจากหมดเขตการเปลี่ยนแปลง (ต้องทำก่อนวันตรวจล่วงหน้าอย่างน้อย ' + LOCK_DAYS_BEFORE + ' วัน)' 
-        };
-      }
-      const timestamp = Utilities.formatDate(new Date(), 'GMT+7', 'yyyy-MM-dd HH:mm:ss');
-      sheet.getRange(existing.row, 9).setValue('Cancelled');
-      sheet.getRange(existing.row, 10).setValue(timestamp); 
-      return { success: true, message: 'ยกเลิกการจองคิวสำเร็จเรียบร้อยแล้ว' };
-    }
-    return { success: false, message: 'ไม่พบข้อมูลการจองของรหัสพนักงานนี้ในระบบ' };
-  } catch (e) {
-    return { success: false, message: 'เกิดข้อผิดพลาดขณะยกเลิกการจอง: ' + e.toString() };
+    // ---------- แปลงเป็น PDF ----------
+    const pdfBlob = DriveApp.getFileById(docId).getAs(MimeType.PDF);
+    const filename = sanitizeFileName_(deptLabel + '_' + secLabel + '_' + unitLabel) + '.pdf';
+
+    return {
+      filename: filename,
+      base64: Utilities.base64Encode(pdfBlob.getBytes())
+    };
+  } finally {
+    try { DriveApp.getFileById(docId).setTrashed(true); } catch (e) { /* ignore */ }
   }
 }
 
-// ตรวจสอบรหัสผ่านผู้ดูแลระบบ
-function verifyAdminPassword(password) {
-  return typeof password === 'string' && password === ADMIN_PASSWORD;
+function sanitizeFileName_(str) {
+  return String(str || '')
+      .replace(/[\\/:*?"<>|]/g, '-')   // อักขระต้องห้ามในชื่อไฟล์
+      .replace(/\s+/g, ' ')
+      .trim();
 }
 
-// ใช้สำหรับหน้าจอ Login ของ Admin - ตรวจสอบรหัสผ่านอย่างเดียว ไม่คืนข้อมูลอื่นใด
-function adminLogin(password) {
-  return { success: verifyAdminPassword(password) };
-}
-
-// ดึงรายการจองทั้งหมดในระบบ (ทุกสถานะ) สำหรับหน้าจอ Admin
-// ต้องแนบรหัสผ่านที่ถูกต้องมาด้วยทุกครั้ง
-function adminGetAllBookings(password) {
-  if (!verifyAdminPassword(password)) {
-    throw new Error('รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง');
-  }
-  const sheet = getSheet();
-  const data = sheet.getDataRange().getDisplayValues();
-  const result = [];
-
-  for (let i = 1; i < data.length; i++) {
-    if (!data[i][0]) continue; // ข้ามแถวว่าง
-    result.push({
-      empId: data[i][0],
-      name: data[i][1],
-      position: data[i][2],
-      department: data[i][3],
-      division: data[i][4],
-      section: data[i][5],
-      location: data[i][6],
-      date: data[i][7],
-      status: data[i][8],
-      timestamp: data[i][9],
-      row: i + 1
-    });
-  }
-
-  return result;
-}
-
-// ค้นหาข้อมูลการจองของพนักงานคนใดก็ได้สำหรับ Admin (รวมถึงรายการที่ยกเลิกแล้ว)
-// ใช้แทน getBooking ปกติ เนื่องจาก getBooking จะข้ามแถวที่สถานะเป็น Cancelled
-function adminSearchBooking(empId, password) {
-  if (!verifyAdminPassword(password)) {
-    throw new Error('รหัสผ่านผู้ดูแลระบบไม่ถูกต้อง');
-  }
-  if (!empId) return null;
-
-  const sheet = getSheet();
-  const data = sheet.getDataRange().getDisplayValues();
-  const searchId = String(empId).trim();
-
-  for (let i = 1; i < data.length; i++) {
-    if (String(data[i][0]).trim() === searchId) {
-      return {
-        empId: data[i][0],
-        name: data[i][1],
-        position: data[i][2],
-        department: data[i][3],
-        division: data[i][4],
-        section: data[i][5],
-        location: data[i][6],
-        date: data[i][7],
-        status: data[i][8],
-        row: i + 1
-      };
-    }
-  }
-  return null;
+// ---------------------------------------------------------------------
+// เรียกฟังก์ชันนี้ "1 ครั้ง" จากใน Apps Script editor เอง (เลือกฟังก์ชันนี้จาก
+// dropdown ด้านบน แล้วกด Run) เพื่อให้ Apps Script โชว์หน้าต่างขออนุญาตสิทธิ์ที่
+// generateDeptPdf() ต้องใช้ (Google Docs + Google Drive) แบบครบถ้วนก่อนสักครั้ง
+// เหตุผลที่ต้องทำ: การกด "Deploy เวอร์ชันใหม่" อย่างเดียว ไม่ได้ทำให้หน้าต่างขอสิทธิ์
+// ใหม่เด้งขึ้นอัตโนมัติ ต้องกด Run ฟังก์ชันที่ใช้สิทธิ์นั้นจากใน editor เพื่อกระตุ้นให้
+// เด้ง permission popup ขึ้นมาเอง ถ้าข้ามขั้นตอนนี้ไป เว็บแอปจะยังใช้สิทธิ์ชุดเก่าที่ไม่มี
+// Drive อยู่ และจะเจอ error "คุณไม่ได้รับอนุญาตให้เรียกใช้ DriveApp..." แบบเดิม
+// ไม่กระทบข้อมูลจริงในชีท สร้างไฟล์ทดสอบเปล่าๆ 1 ไฟล์แล้วลบทิ้งทันที
+// ---------------------------------------------------------------------
+function authorizeDriveAccess() {
+  const tmp = DocumentApp.create('auth-test-' + new Date().getTime());
+  DriveApp.getFileById(tmp.getId()).setTrashed(true);
 }
